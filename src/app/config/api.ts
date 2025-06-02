@@ -1,5 +1,6 @@
 // export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://bim-back.vercel.app/api/';
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5080/api';
+// export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5080/api';
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://de84-212-102-51-116.ngrok-free.app'
 
 /* The `API_HEADERS` constant is defining an object that contains headers commonly used in HTTP
 requests. In this case, the headers are specifying that the content type of the request body is JSON
