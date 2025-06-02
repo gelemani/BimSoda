@@ -90,7 +90,7 @@ class ApiService {
         try {
             // Регистрация пользователя
             console.log("Данные для регистрации пользователя:", userData);
-            const userResponse = await this.axiosInstance.post<ApiResponse<AuthResponse>>('/auth/register', userData);
+            const userResponse = await this.axiosInstance.post<ApiResponse<AuthResponse>>('/api/auth/register', userData);
             console.log("Ответ от сервера (пользователь):", userResponse.data);
 
             if (!userResponse.data.success || !userResponse.data.data?.token) {
@@ -105,7 +105,7 @@ class ApiService {
             // Если данные компании предоставлены, регистрируем компанию
             if (companyData) {
                 console.log("Данные для регистрации компании:", companyData);
-                const companyResponse = await this.axiosInstance.post<ApiResponse<AuthResponse>>('/company/register', companyData);
+                const companyResponse = await this.axiosInstance.post<ApiResponse<AuthResponse>>('/api/company/register', companyData);
                 console.log("Ответ от сервера (компания):", companyResponse.data);
 
                 if (!companyResponse.data.success || !companyResponse.data.data?.userId) {
@@ -159,7 +159,7 @@ class ApiService {
 
     async getUserProjects(userId: number): Promise<ApiResponse<Project[]>> {
         try {
-            const response = await this.axiosInstance.get<ApiResponse<Project[]>>(`/Project?userId=${userId}`);
+            const response = await this.axiosInstance.get<ApiResponse<Project[]>>(`/api/Project?userId=${userId}`);
             console.log("Полученные проекты:", response.data);
             return response.data;
         } catch (error) {
@@ -173,7 +173,7 @@ class ApiService {
 
     async postUserProject(project: Omit<Project, "id">): Promise<Project | undefined> {
         try {
-            const response = await this.axiosInstance.post<Project>('/Project', project);
+            const response = await this.axiosInstance.post<Project>('/api/Project', project);
             console.log("Созданный проект:", response.data);
             return response.data;
         } catch (error) {
@@ -184,7 +184,7 @@ class ApiService {
 
     async putUserProject(projectId: number, project: Project): Promise<void> {
         try {
-            await this.axiosInstance.put(`/Project/${projectId}`, project);
+            await this.axiosInstance.put(`/api/Project/${projectId}`, project);
             console.log("Проект обновлен");
         } catch (error) {
             console.error("Ошибка при обновлении проекта:", error);
@@ -194,7 +194,7 @@ class ApiService {
 
     async deleteUserProject(projectId: number): Promise<ApiResponse<Project>> {
         try {
-            const response = await this.axiosInstance.delete<ApiResponse<Project>>(`/Project/${projectId}`);
+            const response = await this.axiosInstance.delete<ApiResponse<Project>>(`/api/Project/${projectId}`);
             console.log("Удаленный проект:", response.data);
             return response.data;
         } catch (error) {
@@ -208,7 +208,7 @@ class ApiService {
 
     async getUserProjectFiles(userId: number, projectId: number): Promise<ApiResponse<ProjectFile[]>> {
         try {
-            const response = await this.axiosInstance.get(`/Project/${projectId}/files?userId=${userId}`);
+            const response = await this.axiosInstance.get(`/api/Project/${projectId}/files?userId=${userId}`);
             const data = response.data;
 
             console.log("Полученные файлы проекта:", data);
@@ -260,7 +260,7 @@ class ApiService {
             formData.append('userId', String(userId));
 
             const response = await this.axiosInstance.post<ApiResponse<ProjectFile | undefined>>(
-                `/Project/${projectId}/files`,
+                `/api/Project/${projectId}/files`,
                 formData,
                 {
                     headers: {
@@ -282,7 +282,7 @@ class ApiService {
 
     async DownloadFilesZip(projectId: number): Promise<ApiResponse<Blob | undefined>> {
         try {
-            const response = await this.axiosInstance.get<Blob>(`/Project/${projectId}/files/download`, {
+            const response = await this.axiosInstance.get<Blob>(`/api/Project/${projectId}/files/download`, {
                 responseType: 'blob',
             });
             console.log("Полученные файлы (blob):", response.data);
@@ -320,7 +320,7 @@ class ApiService {
 
     async DeleteProjectFile(fileId: number): Promise<ApiResponse<ProjectFile | undefined>> {
         try {
-            const response = await this.axiosInstance.delete<ApiResponse<ProjectFile>>(`/Project/files/${fileId}`);
+            const response = await this.axiosInstance.delete<ApiResponse<ProjectFile>>(`/api/Project/files/${fileId}`);
             console.log("Удаленный файл:", response.data);
             return response.data;
         } catch (error) {
@@ -335,7 +335,7 @@ class ApiService {
     async RenameProjectFile(fileId: number, newFileName: string): Promise<void> {
         try {
             await this.axiosInstance.put(
-                `/Project/files/${fileId}/rename`,
+                `/api/Project/files/${fileId}/rename`,
                 { NewFileName: newFileName },
                 {
                     headers: {
