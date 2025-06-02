@@ -1,6 +1,7 @@
+// eslint-disable-next-line @next/next/no-client-import
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiService } from "@/app/services/api.service";
 import { Project } from "@/app/config/api";
@@ -13,7 +14,7 @@ interface ProjectsPageProps {
     registerData: { companyName: string };
 }
 
-const ProjectsPage = ({ onSelectProject = () => {} }: ProjectsPageProps) => {
+const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) => {
     const router = useRouter();
     const [selectedProject, setSelectedProject] = useState<string>("");
     const [projects, setProjects] = useState<Project[]>([]);
@@ -358,6 +359,19 @@ const ProjectsPage = ({ onSelectProject = () => {} }: ProjectsPageProps) => {
                 )}
             </main>
         </div>
+    );
+};
+
+const ProjectsPage = () => {
+    return (
+        <Suspense fallback={<div>Загрузка...</div>}>
+            <ProjectsPageContent
+                isAuthenticated={true}
+                onSelectProject={() => {}}
+                companyName=""
+                registerData={{ companyName: "" }}
+            />
+        </Suspense>
     );
 };
 
