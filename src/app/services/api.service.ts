@@ -36,7 +36,7 @@ class ApiService {
 
     async login(data: LoginRequest): Promise<ApiResponse<AuthResponse>> {
         try {
-            const response = await this.axiosInstance.post<ApiResponse<AuthResponse>>('/Auth/login', data);
+            const response = await this.axiosInstance.post<ApiResponse<AuthResponse>>('/api/Auth/login', data);
 
             if (response.data.success && response.data.data) {
                 this.authToken = response.data.data.token;
