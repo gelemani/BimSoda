@@ -2,7 +2,10 @@
 
 import React, {useState, FocusEvent, useEffect} from 'react';
 import { useRouter } from 'next/navigation';
+// import {apiService, getStoredUserInfo} from '@/app/services/api.service';
 import {apiService} from '@/app/services/api.service';
+import {ApiResponse, StoredUserInfo} from "@/app/config/api";
+import {id} from "postcss-selector-parser";
 
 interface HeaderProps {
     centralString?: string;
@@ -14,21 +17,31 @@ const Header: React.FC<HeaderProps> = ({ centralString}) => {
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const [userName, setUserName] = useState<string>("");
     const [userSurname, setUserSurname] = useState<string>("");
-    const[companyName, setCompanyName] = useState<string>("");
-    const[companyPosition, setCompanyPosition] = useState<string>("");
+    const [companyPosition, setCompanyPosition] = useState<string>("");
 
+    const [login, setLogin] = useState<string>("");
+    const [email, setEmail] = useState<string>("");
+    const [password, setPassword] = useState<string>("");
+    const [confirmPassword, setConfirmPassword] = useState<string>("");
+    const [userId, setUserId] = useState<string>("");
 
     useEffect(() => {
-        if (typeof window !== "undefined") {
-            const userName = localStorage.getItem("userName") || "";
-            const userSunName = localStorage.getItem("userSurname") || "";
-            const companyName = localStorage.getItem("companyName") || "";
-            const companyPosition = localStorage.getItem("companyPosition") || "";
-            setUserName(userName);
-            setUserSurname(userSunName);
-            setCompanyName(companyName);
-            setCompanyPosition(companyPosition)
+        async function fetchUserInfo() {
+            try {
+                const id: number = localStorage.getItem("userId") ? parseInt(localStorage.getItem("userId") as string) : 0;
+                const userInfo: StoredUserInfo= (await apiService.getUserInfo(id)).data as StoredUserInfo;
+                setLogin(userInfo.login);
+                setUserName(userInfo.userName);
+                setUserSurname(userInfo.userSurname);
+                setEmail(userInfo.email);
+                setPassword(userInfo.password);
+                setConfirmPassword(userInfo.confirmPassword);
+                setCompanyPosition(userInfo.companyPosition);
+            } catch (error) {
+                console.error("Ошибка при получении данных пользователя:", error);
+            }
         }
+        fetchUserInfo();
     }, []);
 
     const handleBlur = (e: FocusEvent<HTMLDivElement>) => {
@@ -68,7 +81,7 @@ const Header: React.FC<HeaderProps> = ({ centralString}) => {
                     cursor: "pointer",
                     padding: 0
                 }}
-                onClick={() => router.push(`/projects?companyName=${encodeURIComponent(companyName ?? "")}`)}
+                onClick={() => router.push(`/projects?companyName=${encodeURIComponent(centralString ?? "")}`)}
                 title="На главную"
             >
                 SodaBIM
@@ -126,8 +139,11 @@ const Header: React.FC<HeaderProps> = ({ centralString}) => {
                         >
                             <p style={{ marginBottom: 4 }}><b>Имя:</b> {userName || "Неизвестно"}</p>
                             <p style={{ marginBottom: 4 }}><b>Фамилия:</b> {userSurname || "Неизвестно"}</p>
-                            <p style={{ marginBottom: 4 }}><b>Компания:</b> {companyName || "Неизвестно"}</p>
+                            <p style={{ marginBottom: 4 }}><b>Компания:</b> {centralString || "Неизвестно"}</p>
                             <p style={{ marginBottom: 4 }}><b>Должность:</b> {companyPosition || "Неизвестно"}</p>
+                            <p style={{ marginBottom: 4 }}><b>Логин:</b> {login || "—"}</p>
+                            <p style={{ marginBottom: 4 }}><b>Email:</b> {email || "—"}</p>
+                            <p style={{ marginBottom: 4 }}><b>Пароль:</b> {password || "—"}</p>
                             <button
                                 onClick={() => {
                                     apiService.logout();

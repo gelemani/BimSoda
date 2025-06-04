@@ -1,11 +1,13 @@
 // eslint-disable-next-line @next/next/no-client-import
 "use client";
 
+import { createContext, useContext } from "react";
 import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiService } from "@/app/services/api.service";
 import { Project } from "@/app/config/api";
 import Header from "@/app/components/header";
+import ClipLoader from "react-spinners/ClipLoader";
 
 interface ProjectsPageProps {
     isAuthenticated: boolean;
@@ -13,6 +15,14 @@ interface ProjectsPageProps {
     companyName: string;
     registerData: { companyName: string };
 }
+
+interface UserContextType {
+    companyName: string;
+    userName: string;
+}
+
+const UserContext = createContext<UserContextType>({ companyName: "", userName: "" });
+const useUserContext = () => useContext(UserContext);
 
 const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) => {
     const router = useRouter();
@@ -34,8 +44,7 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
         accessLevel: "private",
         projectFiles: []
     });
-    const [companyName, setCompanyName] = useState<string>(""); // companyName state
-    const [userName, setUserName] = useState<string>(""); // userName state
+    const { companyName, userName } = useUserContext();
     const searchParams = useSearchParams();
     console.log("Company Name:", companyName);
 
@@ -50,25 +59,10 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
     );
 
     useEffect(() => {
-        // Fetch companyName from localStorage or query param
-        if (typeof window !== "undefined") {
-            const userName = localStorage.getItem("userName") || "";
-            const storedCompanyName = localStorage.getItem("companyName");
-            const queryCompanyName = searchParams.get("companyName");
-
-            const finalCompanyName =
-                queryCompanyName && queryCompanyName !== "null" && queryCompanyName !== "undefined"
-                    ? queryCompanyName
-                    : storedCompanyName || "";
-
-            console.log("Query company:", queryCompanyName, "Stored:", storedCompanyName, "Final:", finalCompanyName);
-            setUserName(userName);
-            setCompanyName(finalCompanyName);
-        }
         const fetchProjects = async () => {
             const userIdRaw = localStorage.getItem("userId");
             const userId = userIdRaw ? Number(userIdRaw) : 0;
-            const response = await apiService.getUserProjects(userId);
+            const response = await apiService.getUserProjects(String(userId));
             if (Array.isArray(response)) {
                 setProjects(response);
             }
@@ -148,7 +142,7 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
 
             // После успешного обновления перезагружаем проекты с сервера
             const userId = parseInt(localStorage.getItem("userId") || "0");
-            const freshProjects = await apiService.getUserProjects(userId);
+            const freshProjects = await apiService.getUserProjects(String(userId));
             if (Array.isArray(freshProjects)) {
                 setProjects(freshProjects);
                 // Найдём только что обновлённый проект
@@ -219,7 +213,9 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
                 </div>
 
                 {isLoading ? (
-                    <p className="text-center text-xl text-blue-500">Загрузка проектов...</p>
+                    <div className="flex justify-center items-center h-48">
+                        <ClipLoader size={50} color={"#3B82F6"} loading={true} />
+                    </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filteredProjects.length === 0 ? (
@@ -227,7 +223,6 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
                                 <p className="text-center text-lg">Проекты не найдены</p>
                             </div>
                         ) : (
-                            // Рендерим список проектов, обязательно указываем key={proj.id}
                             filteredProjects.map((proj) => (
                                 <div key={proj.id} className="relative bg-button-bg border border-button-hover p-6 rounded-lg transition transform hover:scale-105">
                                     {activeMenuId === proj.id && (
@@ -363,14 +358,38 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
 };
 
 const ProjectsPage = () => {
+    const [companyName, setCompanyName] = useState("");
+    const [userName, setUserName] = useState("");
+    const [isReady, setIsReady] = useState(false);
+
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            const storedCompanyName = localStorage.getItem("companyName") || "";
+            const storedUserName = localStorage.getItem("userName") || "";
+            setCompanyName(storedCompanyName);
+            setUserName(storedUserName);
+            setIsReady(true);
+        }
+    }, []);
+
+    if (!isReady) {
+        return (
+            <div className="flex justify-center items-center h-48">
+                <ClipLoader size={50} color={"#3B82F6"} loading={true} />
+            </div>
+        );
+    }
+
     return (
         <Suspense fallback={<div>Загрузка...</div>}>
-            <ProjectsPageContent
-                isAuthenticated={true}
-                onSelectProject={() => {}}
-                companyName=""
-                registerData={{ companyName: "" }}
-            />
+            <UserContext.Provider value={{ companyName, userName }}>
+                <ProjectsPageContent
+                    isAuthenticated={true}
+                    onSelectProject={() => {}}
+                    companyName=""
+                    registerData={{ companyName: "" }}
+                />
+            </UserContext.Provider>
         </Suspense>
     );
 };

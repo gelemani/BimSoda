@@ -312,3 +312,68 @@ textarea::placeholder {
 .theme-text {
     margin-left: 8px;
 }
+
+
+.model-tree-container {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    z-index: 10;
+    background: white;
+    padding: 10px;
+    max-height: 90vh;
+    overflow: auto;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+}
+
+.model-tree {
+    padding-left: 0;
+    margin-top: 0;
+}
+
+.model-tree li {
+    list-style: none;
+    margin-left: 16px;
+}
+
+.model-tree-row {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    border-radius: 4px;
+    padding: 2px 4px;
+    transition: background 0.15s;
+}
+
+.model-tree-row:hover .model-tree-name {
+    background: #f2f2f2;
+}
+
+.model-tree-arrow {
+    user-select: none;
+    width: 16px;
+    margin-right: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.model-tree-name {
+    flex: 1;
+    border-radius: 4px;
+    padding: 2px 4px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.model-tree-name.selected {
+    font-weight: bold;
+    color: #1976d2;
+}
+
+.model-tree-children {
+    padding-left: 12px;
+    border-left: 1px solid #ccc;
+    margin-top: 4px;
+}

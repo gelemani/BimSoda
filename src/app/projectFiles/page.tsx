@@ -1,5 +1,7 @@
 'use client';
 
+import ClipLoader from "react-spinners/ClipLoader";
+
 import React, { useEffect, useState, useRef } from "react";
 import JSZip from "jszip";
 import { apiService } from "@/app/services/api.service";
@@ -7,6 +9,7 @@ import { Project, ProjectFile } from "@/app/config/api";
 import useFileViewer from '@/app/components/hooks/useFileViewer';
 import { useRouter } from "next/navigation";
 import Header from "@/app/components/header";
+import {string} from "postcss-selector-parser";
 
 function defineContent(fileName: string) {
     const parts = fileName.split('.');
@@ -23,6 +26,7 @@ const Page = (): React.JSX.Element => {
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
     const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
+    const [isLoadingFiles, setIsLoadingFiles] = useState<boolean>(true);
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [companyName, setCompanyName] = useState<string>("");
     const [userName, setUserName] = useState<string>("");
@@ -57,7 +61,7 @@ const Page = (): React.JSX.Element => {
         if (!userId) return;
 
         const fetchProjects = async () => {
-            const projectsResult = await apiService.getUserProjects(userId);
+            const projectsResult = await apiService.getUserProjects(String(userId));
             if (projectsResult.success && projectsResult.data) {
                 setProjects(projectsResult.data);
             }
@@ -74,6 +78,7 @@ const Page = (): React.JSX.Element => {
         }
 
         const fetchFiles = async () => {
+            setIsLoadingFiles(true);
             const result = await apiService.getUserProjectFiles(userId, currentProjectId);
             if (isMounted) {
                 if (result.success && result.data) {
@@ -81,6 +86,7 @@ const Page = (): React.JSX.Element => {
                 } else {
                     console.error("Ошибка при загрузке файлов проекта:", result.error);
                 }
+                setIsLoadingFiles(false);
             }
         };
 
@@ -304,7 +310,11 @@ const Page = (): React.JSX.Element => {
                 </div>
             </div>
 
-            {Object.entries(projectGroups).length === 0 ? (
+            {isLoadingFiles ? (
+                <div className="flex justify-center items-center h-48">
+                    <ClipLoader size={50} color={"#3B82F6"} loading={true} />
+                </div>
+            ) : Object.entries(projectGroups).length === 0 ? (
                 <p className="text-red-500 mb-6">Нет файлов.</p>
             ) : (
                 Object.entries(projectGroups).map(([projectId, files]) => (

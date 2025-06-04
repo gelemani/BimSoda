@@ -7,12 +7,16 @@ import {
     AuthResponse,
     ApiResponse,
     Project,
-    ProjectFile
+    ProjectFile,
+    StoredUserInfo
 } from '../config/api';
-import {file} from "jszip";
+import {id} from "postcss-selector-parser";
 
 
 const isClient = typeof window !== 'undefined';
+const API_PREFIX = '/api';
+// const API_PREFIX = '';
+
 
 class ApiService {
     private authToken: string | null | undefined = null;
@@ -36,7 +40,7 @@ class ApiService {
 
     async login(data: LoginRequest): Promise<ApiResponse<AuthResponse>> {
         try {
-            const response = await this.axiosInstance.post<ApiResponse<AuthResponse>>('/api/Auth/login', data);
+            const response = await this.axiosInstance.post<ApiResponse<AuthResponse>>(`${API_PREFIX}/Auth/login`, data);
 
             if (response.data.success && response.data.data) {
                 this.authToken = response.data.data.token;
@@ -90,7 +94,7 @@ class ApiService {
         try {
             // Регистрация пользователя
             console.log("Данные для регистрации пользователя:", userData);
-            const userResponse = await this.axiosInstance.post<ApiResponse<AuthResponse>>('/api/auth/register', userData);
+            const userResponse = await this.axiosInstance.post<ApiResponse<AuthResponse>>(`${API_PREFIX}/auth/register`, userData);
             console.log("Ответ от сервера (пользователь):", userResponse.data);
 
             if (!userResponse.data.success || !userResponse.data.data?.token) {
@@ -105,7 +109,7 @@ class ApiService {
             // Если данные компании предоставлены, регистрируем компанию
             if (companyData) {
                 console.log("Данные для регистрации компании:", companyData);
-                const companyResponse = await this.axiosInstance.post<ApiResponse<AuthResponse>>('/api/company/register', companyData);
+                const companyResponse = await this.axiosInstance.post<ApiResponse<AuthResponse>>(`${API_PREFIX}/company/register`, companyData);
                 console.log("Ответ от сервера (компания):", companyResponse.data);
 
                 if (!companyResponse.data.success || !companyResponse.data.data?.userId) {
@@ -138,6 +142,46 @@ class ApiService {
         }
     }
 
+    async getUserInfo(userId: number): Promise<ApiResponse<StoredUserInfo>> {
+        try {
+            console.log(`[ApiService] Запрос информации о пользователе с userId=${userId}`);
+            const response = await this.axiosInstance.get<StoredUserInfo>(`${API_PREFIX}/Auth/getinfo?id=${userId}`);
+
+            console.log("[ApiService] Полученный ответ:", response);
+            const userInfo = response.data;
+
+            if (!userInfo) {
+                console.warn("[ApiService] В ответе отсутствуют данные пользователя");
+                return {
+                    success: false,
+                    error: "Данные пользователя отсутствуют в ответе сервера",
+                };
+            }
+
+            if (isClient) {
+                localStorage.setItem("userName", userInfo.userName || "");
+                localStorage.setItem("userSurname", userInfo.userSurname || "");
+                localStorage.setItem("companyName", userInfo.companyName || "");
+                localStorage.setItem("companyPosition", userInfo.companyPosition || "");
+                localStorage.setItem("login", userInfo.login || "");
+                localStorage.setItem("email", userInfo.email || "");
+                localStorage.setItem("password", userInfo.password || "");
+                localStorage.setItem("confirmPassword", userInfo.confirmPassword || "");
+            }
+
+            return {
+                success: true,
+                data: userInfo,
+            };
+        } catch (error) {
+            console.error("[ApiService] Ошибка при получении информации о пользователе:", error);
+            return {
+                success: false,
+                error: axios.isAxiosError(error) ? error.response?.data?.message || error.message : 'Неизвестная ошибка',
+            };
+        }
+    }
+
     // Инициализация аутентификации на клиентской стороне
     initializeAuth() {
         if (isClient) {
@@ -157,9 +201,9 @@ class ApiService {
         }
     }
 
-    async getUserProjects(userId: number): Promise<ApiResponse<Project[]>> {
+    async getUserProjects(userId: string): Promise<ApiResponse<Project[]>> {
         try {
-            const response = await this.axiosInstance.get<ApiResponse<Project[]>>(`/api/Project?userId=${userId}`);
+            const response = await this.axiosInstance.get<ApiResponse<Project[]>>(`${API_PREFIX}/Project?userId=${userId}`);
             console.log("Полученные проекты:", response.data);
             return response.data;
         } catch (error) {
@@ -173,7 +217,7 @@ class ApiService {
 
     async postUserProject(project: Omit<Project, "id">): Promise<Project | undefined> {
         try {
-            const response = await this.axiosInstance.post<Project>('/api/Project', project);
+            const response = await this.axiosInstance.post<Project>(`${API_PREFIX}/Project`, project);
             console.log("Созданный проект:", response.data);
             return response.data;
         } catch (error) {
@@ -184,7 +228,7 @@ class ApiService {
 
     async putUserProject(projectId: number, project: Project): Promise<void> {
         try {
-            await this.axiosInstance.put(`/api/Project/${projectId}`, project);
+            await this.axiosInstance.put(`${API_PREFIX}/Project/${projectId}`, project);
             console.log("Проект обновлен");
         } catch (error) {
             console.error("Ошибка при обновлении проекта:", error);
@@ -194,7 +238,7 @@ class ApiService {
 
     async deleteUserProject(projectId: number): Promise<ApiResponse<Project>> {
         try {
-            const response = await this.axiosInstance.delete<ApiResponse<Project>>(`/api/Project/${projectId}`);
+            const response = await this.axiosInstance.delete<ApiResponse<Project>>(`${API_PREFIX}/Project/${projectId}`);
             console.log("Удаленный проект:", response.data);
             return response.data;
         } catch (error) {
@@ -208,7 +252,7 @@ class ApiService {
 
     async getUserProjectFiles(userId: number, projectId: number): Promise<ApiResponse<ProjectFile[]>> {
         try {
-            const response = await this.axiosInstance.get(`/api/Project/${projectId}/files?userId=${userId}`);
+            const response = await this.axiosInstance.get(`${API_PREFIX}/Project/${projectId}/files?userId=${userId}`);
             const data = response.data;
 
             console.log("Полученные файлы проекта:", data);
@@ -260,7 +304,7 @@ class ApiService {
             formData.append('userId', String(userId));
 
             const response = await this.axiosInstance.post<ApiResponse<ProjectFile | undefined>>(
-                `/api/Project/${projectId}/files`,
+                `${API_PREFIX}/Project/${projectId}/files`,
                 formData,
                 {
                     headers: {
@@ -282,7 +326,7 @@ class ApiService {
 
     async DownloadFilesZip(projectId: number): Promise<ApiResponse<Blob | undefined>> {
         try {
-            const response = await this.axiosInstance.get<Blob>(`/api/Project/${projectId}/files/download`, {
+            const response = await this.axiosInstance.get<Blob>(`${API_PREFIX}/Project/${projectId}/files/download`, {
                 responseType: 'blob',
             });
             console.log("Полученные файлы (blob):", response.data);
@@ -320,7 +364,7 @@ class ApiService {
 
     async DeleteProjectFile(fileId: number): Promise<ApiResponse<ProjectFile | undefined>> {
         try {
-            const response = await this.axiosInstance.delete<ApiResponse<ProjectFile>>(`/api/Project/files/${fileId}`);
+            const response = await this.axiosInstance.delete<ApiResponse<ProjectFile>>(`${API_PREFIX}/Project/files/${fileId}`);
             console.log("Удаленный файл:", response.data);
             return response.data;
         } catch (error) {
@@ -335,7 +379,7 @@ class ApiService {
     async RenameProjectFile(fileId: number, newFileName: string): Promise<void> {
         try {
             await this.axiosInstance.put(
-                `/api/Project/files/${fileId}/rename`,
+                `${API_PREFIX}/Project/files/${fileId}/rename`,
                 { NewFileName: newFileName },
                 {
                     headers: {
