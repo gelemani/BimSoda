@@ -319,7 +319,7 @@ textarea::placeholder {
     left: 10px;
     top: 10px;
     z-index: 10;
-    background: white;
+    background-color: #1F252E;
     padding: 10px;
     max-height: 90vh;
     overflow: auto;
@@ -348,7 +348,7 @@ textarea::placeholder {
 }
 
 .model-tree-row:hover .model-tree-name {
-    background: #f2f2f2;
+    background: #3A4452;
 }
 
 .model-tree-arrow {

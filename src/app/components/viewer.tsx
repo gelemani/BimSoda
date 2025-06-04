@@ -98,6 +98,9 @@ const Viewer = ({
     const [isTreeDragging, setIsTreeDragging] = useState(false);
     const [modelStructure, setModelStructure] = useState<TreeNode | null>(null);
     const [exploded, setExploded] = useState(false);
+    // --- Model Tree collapsed state ---
+    const [isTreeCollapsed, setIsTreeCollapsed] = useState(false);
+    const toggleTreeCollapsed = () => setIsTreeCollapsed((prev) => !prev);
 
     const viewer = useRef<IfcViewerAPI | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -344,35 +347,47 @@ const Viewer = ({
         const toggleExpanded = () => setExpanded(!expanded);
 
         const handleSelect = async () => {
-            if (!viewer.current || node.expressID === undefined) return;
-            const manager = viewer.current.IFC.loader.ifcManager;
-            const model = viewer.current.context.items.pickableIfcModels[0];
-            const modelID = model.modelID;
-            const subsetId = `hide-others-${node.expressID}`;
-            const existingSubset = manager.getSubset(modelID, undefined, subsetId);
-            if (existingSubset) {
-                manager.removeSubset(modelID, undefined, subsetId);
-                setSelected(false);
-            } else {
-                try {
-                    const geometry = model.geometry;
-                    const idAttr = geometry.getAttribute("expressID");
-                    const allIDs = new Set<number>();
-                    for (let i = 0; i < idAttr.count; i++) allIDs.add(idAttr.getX(i));
-                    const idsToHide = Array.from(allIDs).filter((id) => id !== node.expressID);
-                    await manager.createSubset({
-                        modelID,
-                        ids: idsToHide,
-                        material: hideMaterial,
-                        scene: viewer.current.context.scene.scene,
-                        removePrevious: false,
-                        customID: subsetId,
-                    });
-                    setSelected(true);
-                } catch {
-                    // ignore
-                }
+          if (!viewer.current || node.expressID === undefined) return;
+
+          const manager = viewer.current.IFC.loader.ifcManager;
+          const scene = viewer.current.context.getScene();
+          const model = viewer.current.context.items.pickableIfcModels[0];
+          const modelID = model.modelID;
+          const subsetId = `show-only-${node.expressID}`;
+
+          try {
+            // Remove previous subset if exists
+            const maybeSubset = scene.children.find(obj => obj.name === subsetId);
+            if (maybeSubset) {
+              scene.remove(maybeSubset);
+              model.visible = true;
+              setSelected(false);
+              return;
             }
+
+            // Hide main mesh
+            model.visible = false;
+
+            // Create subset only with selected element
+            const subset = await manager.createSubset({
+              modelID,
+              ids: [node.expressID],
+              material: undefined,
+              scene,
+              removePrevious: false,
+              customID: subsetId,
+            });
+
+            if (subset) {
+              subset.name = subsetId;
+              subset.visible = true;
+              setSelected(true);
+            } else {
+              console.warn("Subset creation returned null");
+            }
+          } catch (err) {
+            console.warn("Subset creation/removal failed:", err);
+          }
         };
 
         const handleMouseEnter = () => {
@@ -432,45 +447,61 @@ const Viewer = ({
                     </button>
                     {/* Панель Model Tree с перетаскиванием */}
                     <div
-                        style={{
-                            position: "absolute",
-                            left: treePosition.x,
-                            top: treePosition.y,
-                            zIndex: 20,
-                            background: "white",
-                            padding: 0,
-                            maxHeight: "90vh",
-                            overflow: "auto",
-                            fontFamily: "Arial, sans-serif",
-                            fontSize: 14,
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.13)",
-                            minWidth: 240,
-                            borderRadius: 6,
-                            border: "1px solid #ccc",
-                        }}
+                      style={{
+                        position: "absolute",
+                        left: treePosition.x,
+                        top: treePosition.y,
+                        zIndex: 20,
+                        background: "#1F252E",
+                        padding: 0,
+                        maxHeight: "90vh",
+                        overflow: "auto",
+                        fontFamily: "Arial, sans-serif",
+                        fontSize: 14,
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.13)",
+                        minWidth: 240,
+                        borderRadius: 6,
+                        border: "1px solid #ccc",
+                        color: "#fff"
+                      }}
                     >
-                        {/* Шапка панели дерева, зона для перетаскивания */}
-                        <div
-                            style={{
-                                cursor: isTreeDragging ? "grabbing" : "grab",
-                                background: "#f0f0f0",
-                                borderBottom: "1px solid #ddd",
-                                padding: "8px 12px",
-                                userSelect: "none",
-                                fontWeight: 600,
-                                borderRadius: "6px 6px 0 0",
-                                display: "flex",
-                                alignItems: "center",
-                            }}
-                            onMouseDown={startTreeDrag}
+                      <div
+                        style={{
+                          cursor: isTreeDragging ? "grabbing" : "grab",
+                          background: "#2C333A",
+                          borderBottom: "1px solid #444",
+                          padding: "8px 12px",
+                          userSelect: "none",
+                          fontWeight: 600,
+                          borderRadius: "6px 6px 0 0",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between"
+                        }}
+                        onMouseDown={startTreeDrag}
+                      >
+                        <span>Model Tree</span>
+                        <button
+                          onClick={toggleTreeCollapsed}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "#fff",
+                            cursor: "pointer",
+                            fontSize: 16
+                          }}
+                          aria-label="Collapse Tree"
                         >
-                            Model Tree
-                        </div>
+                          {isTreeCollapsed ? "▶" : "▼"}
+                        </button>
+                      </div>
+                      {!isTreeCollapsed && (
                         <div style={{ padding: 10 }}>
-                            <ul style={{ paddingLeft: 0, marginTop: 0 }}>
-                                {modelStructure && <TreeNodeComponent node={modelStructure} />}
-                            </ul>
+                          <ul style={{ paddingLeft: 0, marginTop: 0 }}>
+                            {modelStructure && <TreeNodeComponent node={modelStructure} />}
+                          </ul>
                         </div>
+                      )}
                     </div>
                     <div ref={containerRef} className="viewer-container" onClick={handleClick} />
                     {isModalOpen && selectedElement && (
