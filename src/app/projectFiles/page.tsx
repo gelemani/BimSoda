@@ -187,34 +187,6 @@ const Page = (): React.JSX.Element => {
         }
     };
 
-    // Обработка открытия файла из контекстного меню
-    // const handleOpenFile = async (file: ProjectFile) => {
-    //     setContextMenuPos(null);
-    //     setSelectedFileId(null);
-    //
-    //     // Сначала пытаемся взять файл из кеша
-    //     let fileToOpen = fileCacheRef.current.get(file.id);
-    //
-    //     if (!fileToOpen) {
-    //         const result = await apiService.DownloadFile(file.id);
-    //         if (result.success && result.data) {
-    //             const blobData = result.data;
-    //             fileToOpen = new File([blobData], file.fileName.trim(), { type: file.contentType || "application/octet-stream" });
-    //             fileCacheRef.current.set(file.id, fileToOpen);
-    //         } else {
-    //             console.error("Не удалось загрузить файл:", result.error);
-    //             return;
-    //         }
-    //     }
-    //
-    //     if (fileToOpen) {
-    //         const objectUrl = URL.createObjectURL(fileToOpen);
-    //         openFileInViewer({ file: fileToOpen, url: objectUrl });
-    //         // revokeObjectURL теперь вызывается безопасно после закрытия файла в DocsViewerPage
-    //     }
-    // };
-
-
     const handleOpenZipFile = async (projectId: number, file: ProjectFile) => {
         try {
             const result = await apiService.DownloadFilesZip(projectId);

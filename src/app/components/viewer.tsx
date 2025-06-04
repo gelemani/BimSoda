@@ -480,7 +480,7 @@ const Viewer = ({
                         }}
                         onMouseDown={startTreeDrag}
                       >
-                        <span>Model Tree</span>
+                        <span>Структура модели</span>
                         <button
                           onClick={toggleTreeCollapsed}
                           style={{
