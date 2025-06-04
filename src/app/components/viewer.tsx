@@ -288,7 +288,7 @@ const Viewer = ({
             mesh.visible = false;
         }
         allExpressIDs = Array.from(new Set(allExpressIDs));
-        const EXPLODE_DISTANCE = 30;
+        const EXPLODE_DISTANCE = 60;
         for (const id of allExpressIDs) {
             try {
                 const subset = await manager.createSubset({
@@ -441,9 +441,9 @@ const Viewer = ({
                             else explodeModel();
                             setExploded((prev) => !prev);
                         }}
-                        style={{ position: "absolute", zIndex: 10, top: 10, right: 10 }}
+                        style={{ position: "absolute", zIndex: 10, top: 10, right: 10, border: "1px solid white" }}
                     >
-                        Toggle Explode
+                        Взорвать / Сбросить
                     </button>
                     {/* Панель Model Tree с перетаскиванием */}
                     <div
