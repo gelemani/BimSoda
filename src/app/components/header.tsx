@@ -18,6 +18,7 @@ const Header: React.FC<HeaderProps> = ({ centralString}) => {
     const [userName, setUserName] = useState<string>("");
     const [userSurname, setUserSurname] = useState<string>("");
     const [companyPosition, setCompanyPosition] = useState<string>("");
+    const [companyName, setCompanyName] = useState<string>("");
 
     const [login, setLogin] = useState<string>("");
     const [email, setEmail] = useState<string>("");
@@ -37,6 +38,7 @@ const Header: React.FC<HeaderProps> = ({ centralString}) => {
                 setPassword(userInfo.password);
                 setConfirmPassword(userInfo.confirmPassword);
                 setCompanyPosition(userInfo.companyPosition);
+                setCompanyName(userInfo.companyName);
             } catch (error) {
                 console.error("Ошибка при получении данных пользователя:", error);
             }
@@ -139,7 +141,7 @@ const Header: React.FC<HeaderProps> = ({ centralString}) => {
                         >
                             <p style={{ marginBottom: 4 }}><b>Имя:</b> {userName || "Неизвестно"}</p>
                             <p style={{ marginBottom: 4 }}><b>Фамилия:</b> {userSurname || "Неизвестно"}</p>
-                            <p style={{ marginBottom: 4 }}><b>Компания:</b> {centralString || "Неизвестно"}</p>
+                            <p style={{ marginBottom: 4 }}><b>Компания:</b> {companyName || "Неизвестно"}</p>
                             <p style={{ marginBottom: 4 }}><b>Должность:</b> {companyPosition || "Неизвестно"}</p>
                             <p style={{ marginBottom: 4 }}><b>Логин:</b> {login || "—"}</p>
                             <p style={{ marginBottom: 4 }}><b>Email:</b> {email || "—"}</p>
