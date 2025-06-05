@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { IfcViewerAPI } from "web-ifc-viewer";
@@ -99,7 +99,7 @@ const Viewer = ({
     const [modelStructure, setModelStructure] = useState<TreeNode | null>(null);
     const [exploded, setExploded] = useState(false);
     // --- Model Tree collapsed state ---
-    const [isTreeCollapsed, setIsTreeCollapsed] = useState(false);
+    const [isTreeCollapsed, setIsTreeCollapsed] = useState(true);
     const toggleTreeCollapsed = () => setIsTreeCollapsed((prev) => !prev);
 
     const viewer = useRef<IfcViewerAPI | null>(null);
@@ -273,22 +273,29 @@ const Viewer = ({
         const scene = viewer.current.context.getScene();
         const meshes = viewer.current.context.items.pickableIfcModels;
         const globalBox = new THREE.Box3();
+
+        // Объединяем bounding box всех мешей
         meshes.forEach((mesh) => globalBox.union(new THREE.Box3().setFromObject(mesh)));
+
         const modelCenter = new THREE.Vector3();
         globalBox.getCenter(modelCenter);
+
         const getAllExpressIDsFromGeometry = (mesh: typeof meshes[number]) => {
             const idAttr = mesh.geometry.getAttribute("expressID");
             const ids = new Set<number>();
             for (let i = 0; i < idAttr.count; i++) ids.add(idAttr.getX(i));
             return Array.from(ids);
         };
+
         let allExpressIDs: number[] = [];
         for (const mesh of meshes) {
             allExpressIDs.push(...getAllExpressIDsFromGeometry(mesh));
-            mesh.visible = false;
+            mesh.visible = false; // Скрываем исходные меши
         }
         allExpressIDs = Array.from(new Set(allExpressIDs));
-        const EXPLODE_DISTANCE = 60;
+
+        const EXPLODE_DISTANCE = 0;
+
         for (const id of allExpressIDs) {
             try {
                 const subset = await manager.createSubset({
@@ -299,24 +306,36 @@ const Viewer = ({
                     customID: `explode-${id}`,
                 });
                 if (!subset) continue;
+
                 scene.add(subset);
                 subset.visible = true;
+
                 const box = new THREE.Box3().setFromObject(subset);
                 const center = new THREE.Vector3();
                 box.getCenter(center);
-                const direction = new THREE.Vector3().subVectors(center, modelCenter).normalize();
-                if (!direction.length() || !isFinite(direction.length())) {
-                    direction.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
+
+                // Направление смещения от центра модели к центру подсубмодели
+                const direction = new THREE.Vector3().subVectors(center, modelCenter);
+
+                if (direction.length() === 0 || !isFinite(direction.length())) {
+                    // Если вектор нулевой или невалидный — задаём случайное направление
+                    direction.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5);
                 }
+
+                direction.normalize();
+
+                // Добавляем небольшое случайное смещение, чтобы части не слипались строго по вектору
                 const randomOffset = new THREE.Vector3(
                     (Math.random() - 0.5) * 5,
                     (Math.random() - 0.5) * 5,
                     (Math.random() - 0.5) * 5
                 );
+
                 const offset = direction.multiplyScalar(EXPLODE_DISTANCE).add(randomOffset);
+
                 gsap.to(subset.position, { x: offset.x, y: offset.y, z: offset.z, duration: 2 });
             } catch (e) {
-                // ignore
+                // Игнорируем ошибки
             }
         }
     }, []);
@@ -347,47 +366,47 @@ const Viewer = ({
         const toggleExpanded = () => setExpanded(!expanded);
 
         const handleSelect = async () => {
-          if (!viewer.current || node.expressID === undefined) return;
+            if (!viewer.current || node.expressID === undefined) return;
 
-          const manager = viewer.current.IFC.loader.ifcManager;
-          const scene = viewer.current.context.getScene();
-          const model = viewer.current.context.items.pickableIfcModels[0];
-          const modelID = model.modelID;
-          const subsetId = `show-only-${node.expressID}`;
+            const manager = viewer.current.IFC.loader.ifcManager;
+            const scene = viewer.current.context.getScene();
+            const model = viewer.current.context.items.pickableIfcModels[0];
+            const modelID = model.modelID;
+            const subsetId = `show-only-${node.expressID}`;
 
-          try {
-            // Remove previous subset if exists
-            const maybeSubset = scene.children.find(obj => obj.name === subsetId);
-            if (maybeSubset) {
-              scene.remove(maybeSubset);
-              model.visible = true;
-              setSelected(false);
-              return;
+            try {
+                // Remove previous subset if exists
+                const maybeSubset = scene.children.find(obj => obj.name === subsetId);
+                if (maybeSubset) {
+                    scene.remove(maybeSubset);
+                    model.visible = true;
+                    setSelected(false);
+                    return;
+                }
+
+                // Hide main mesh
+                model.visible = false;
+
+                // Create subset only with selected element
+                const subset = await manager.createSubset({
+                    modelID,
+                    ids: [node.expressID],
+                    material: undefined,
+                    scene,
+                    removePrevious: false,
+                    customID: subsetId,
+                });
+
+                if (subset) {
+                    subset.name = subsetId;
+                    subset.visible = true;
+                    setSelected(true);
+                } else {
+                    console.warn("Subset creation returned null");
+                }
+            } catch (err) {
+                console.warn("Subset creation/removal failed:", err);
             }
-
-            // Hide main mesh
-            model.visible = false;
-
-            // Create subset only with selected element
-            const subset = await manager.createSubset({
-              modelID,
-              ids: [node.expressID],
-              material: undefined,
-              scene,
-              removePrevious: false,
-              customID: subsetId,
-            });
-
-            if (subset) {
-              subset.name = subsetId;
-              subset.visible = true;
-              setSelected(true);
-            } else {
-              console.warn("Subset creation returned null");
-            }
-          } catch (err) {
-            console.warn("Subset creation/removal failed:", err);
-          }
         };
 
         const handleMouseEnter = () => {
@@ -417,7 +436,7 @@ const Viewer = ({
                         className={`model-tree-name${selected ? " selected" : ""}`}
                         onClick={handleSelect}
                     >
-                      {node.name}
+                        {node.name}
                     </span>
                 </div>
                 {hasChildren && expanded && (
@@ -443,65 +462,65 @@ const Viewer = ({
                         }}
                         style={{ position: "absolute", zIndex: 10, top: 10, right: 10, border: "1px solid white" }}
                     >
-                        Взорвать / Сбросить
+                        Разобрать
                     </button>
                     {/* Панель Model Tree с перетаскиванием */}
                     <div
-                      style={{
-                        position: "absolute",
-                        left: treePosition.x,
-                        top: treePosition.y,
-                        zIndex: 20,
-                        background: "#1F252E",
-                        padding: 0,
-                        maxHeight: "90vh",
-                        overflow: "auto",
-                        fontFamily: "Arial, sans-serif",
-                        fontSize: 14,
-                        boxShadow: "0 2px 8px rgba(0,0,0,0.13)",
-                        minWidth: 240,
-                        borderRadius: 6,
-                        border: "1px solid #ccc",
-                        color: "#fff"
-                      }}
-                    >
-                      <div
                         style={{
-                          cursor: isTreeDragging ? "grabbing" : "grab",
-                          background: "#2C333A",
-                          borderBottom: "1px solid #444",
-                          padding: "8px 12px",
-                          userSelect: "none",
-                          fontWeight: 600,
-                          borderRadius: "6px 6px 0 0",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between"
+                            position: "absolute",
+                            left: treePosition.x,
+                            top: treePosition.y,
+                            zIndex: 20,
+                            background: "#1F252E",
+                            padding: 0,
+                            maxHeight: "90vh",
+                            overflow: "auto",
+                            fontFamily: "Arial, sans-serif",
+                            fontSize: 14,
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.13)",
+                            minWidth: 240,
+                            borderRadius: 6,
+                            border: "1px solid #ccc",
+                            color: "#fff"
                         }}
-                        onMouseDown={startTreeDrag}
-                      >
-                        <span>Структура модели</span>
-                        <button
-                          onClick={toggleTreeCollapsed}
-                          style={{
-                            background: "transparent",
-                            border: "none",
-                            color: "#fff",
-                            cursor: "pointer",
-                            fontSize: 16
-                          }}
-                          aria-label="Collapse Tree"
+                    >
+                        <div
+                            style={{
+                                cursor: isTreeDragging ? "grabbing" : "grab",
+                                background: "#2C333A",
+                                borderBottom: "1px solid #444",
+                                padding: "8px 12px",
+                                userSelect: "none",
+                                fontWeight: 600,
+                                borderRadius: "6px 6px 0 0",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between"
+                            }}
+                            onMouseDown={startTreeDrag}
                         >
-                          {isTreeCollapsed ? "▶" : "▼"}
-                        </button>
-                      </div>
-                      {!isTreeCollapsed && (
-                        <div style={{ padding: 10 }}>
-                          <ul style={{ paddingLeft: 0, marginTop: 0 }}>
-                            {modelStructure && <TreeNodeComponent node={modelStructure} />}
-                          </ul>
+                            <span>Структура модели</span>
+                            <button
+                                onClick={toggleTreeCollapsed}
+                                style={{
+                                    background: "transparent",
+                                    border: "none",
+                                    color: "#fff",
+                                    cursor: "pointer",
+                                    fontSize: 16
+                                }}
+                                aria-label="Collapse Tree"
+                            >
+                                {isTreeCollapsed ? "▶" : "▼"}
+                            </button>
                         </div>
-                      )}
+                        {!isTreeCollapsed && (
+                            <div style={{ padding: 10 }}>
+                                <ul style={{ paddingLeft: 0, marginTop: 0 }}>
+                                    {modelStructure && <TreeNodeComponent node={modelStructure} />}
+                                </ul>
+                            </div>
+                        )}
                     </div>
                     <div ref={containerRef} className="viewer-container" onClick={handleClick} />
                     {isModalOpen && selectedElement && (

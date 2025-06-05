@@ -216,9 +216,10 @@ textarea::placeholder {
 /* Контейнер вьюера */
 .viewer-container {
     position: absolute;
-    right: 12px;
-    width: calc(100% - 24px);
-    height: 95%;
+    /*right: 12px;*/
+    /*width: calc(100% - 24px);*/
+    width: 100%;
+    height: 100%;
     border: 1px solid #ccc;
 }
 

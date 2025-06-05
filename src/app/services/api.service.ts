@@ -8,15 +8,13 @@ import {
     ApiResponse,
     Project,
     ProjectFile,
-    StoredUserInfo
+    StoredUserInfo,
+    API_PREFIX
 } from '../config/api';
 import {id} from "postcss-selector-parser";
 
 
 const isClient = typeof window !== 'undefined';
-const API_PREFIX = '/api';
-// const API_PREFIX = '';
-
 
 class ApiService {
     private authToken: string | null | undefined = null;

@@ -13,6 +13,9 @@ export const API_HEADERS = {
     'ngrok-skip-browser-warning': true
 };
 
+export const API_PREFIX = '/api';
+// export const API_PREFIX = '';
+
 export interface LoginRequest {
     login: string;
     password: string;
