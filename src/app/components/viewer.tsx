@@ -85,8 +85,9 @@ const Viewer = ({
     file?: File | null;
 }) => {
     const [selectedElement, setSelectedElement] = useState<IfcElementProperties | null>(null);
-    const [comments, setComments] = useState<Record<number, Comment[]>>({});
+    const [comments, setComments] = useState<Record<string, Comment[]>>({});
     const [newComment, setNewComment] = useState("");
+    const [selectedCommentsId, setSelectedCommentsId] = React.useState<number | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalPosition, setModalPosition] = useState({ x: 100, y: 100 });
     const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
@@ -209,14 +210,24 @@ const Viewer = ({
     );
 
     const handleClick = useCallback(async () => {
-        if (!viewer.current) return;
+        if (!viewer.current || !modelStructure) return;
         const result = await viewer.current.IFC.selector.pickIfcItem();
         if (!result) return;
+
+        const found = viewer.current.context.items.pickableIfcModels.some(model => {
+            return model.visible && model.geometry.getAttribute("expressID")?.array.includes(result.id);
+        });
+        if (!found && !isTreeCollapsed) return;
+
         const properties = await viewer.current.IFC.loader.ifcManager.getItemProperties(result.modelID, result.id);
+        if (!('id' in properties)) {
+            properties.id = result.id;
+        }
+        console.log("Выбранный элемент свойства:", properties);
         setSelectedElement(properties);
         setNewComment("");
         setIsModalOpen(true);
-    }, []);
+    }, [isTreeCollapsed, modelStructure]);
 
     const clearSelection = useCallback(() => {
         viewer.current?.IFC.unpickIfcItems();
@@ -234,11 +245,17 @@ const Viewer = ({
             selectedElement.Name && typeof selectedElement.Name === "object" && "value" in selectedElement.Name
                 ? selectedElement.Name.value
                 : "Unknown Element";
+        console.log("Сохраняем комментарий:", {
+            elementId,
+            elementName,
+            commentText,
+        });
+        const elementIdStr = String(elementId);
         setComments((prev) => {
             const updated = { ...prev };
-            if (!updated[elementId]) updated[elementId] = [];
-            if (!updated[elementId].some((c) => c.text === commentText)) {
-                updated[elementId].push({ text: commentText, elementName, elementId });
+            if (!updated[elementIdStr]) updated[elementIdStr] = [];
+            if (!updated[elementIdStr].some((c) => c.text === commentText)) {
+                updated[elementIdStr].push({ text: commentText, elementName, elementId });
             }
             return updated;
         });
@@ -460,9 +477,51 @@ const Viewer = ({
                             else explodeModel();
                             setExploded((prev) => !prev);
                         }}
-                        style={{ position: "absolute", zIndex: 10, top: 10, right: 10, border: "1px solid white" }}
+                        style={{position: "absolute", zIndex: 10, top: 10, right: 10, border: "1px solid white"}}
                     >
                         Разобрать
+                    </button>
+                    <button
+                        onClick={() => {
+                            if (!viewer.current) {
+                                console.warn("Viewer не инициализирован");
+                                return;
+                            }
+                            try {
+                                const model = viewer.current.context.items.pickableIfcModels[0];
+                                if (!model) {
+                                    console.warn("Модель не найдена");
+                                    return;
+                                }
+                                model.visible = true;
+                                console.log("Основная модель сделана видимой");
+
+                                const scene = viewer.current.context.getScene();
+                                const manager = viewer.current.IFC.loader.ifcManager;
+
+                                // Удаляем все subset'ы с именами начинающимися на "show-only-"
+                                const toRemove = scene.children.filter(obj => obj.name?.startsWith("show-only-"));
+                                toRemove.forEach(obj => {
+                                    scene.remove(obj);
+                                    console.log(`Удалён subset ${obj.name}`);
+                                });
+
+                                // Снимаем выделения
+                                viewer.current.IFC.selector.unpickIfcItems();
+                                console.log("Выделение очищено");
+
+                                // Очистка состояния
+                                setSelectedElement(null);
+                                setSelectedCommentsId(null);
+                                setIsModalOpen(false);
+                                console.log("Состояния очищены");
+                            } catch (err) {
+                                console.error("Ошибка при сбросе модели:", err);
+                            }
+                        }}
+                        style={{position: "absolute", zIndex: 10, top: 50, right: 10, border: "1px solid white"}}
+                    >
+                        Сбросить модель
                     </button>
                     {/* Панель Model Tree с перетаскиванием */}
                     <div
@@ -515,22 +574,22 @@ const Viewer = ({
                             </button>
                         </div>
                         {!isTreeCollapsed && (
-                            <div style={{ padding: 10 }}>
-                                <ul style={{ paddingLeft: 0, marginTop: 0 }}>
-                                    {modelStructure && <TreeNodeComponent node={modelStructure} />}
+                            <div style={{padding: 10}}>
+                                <ul style={{paddingLeft: 0, marginTop: 0}}>
+                                    {modelStructure && <TreeNodeComponent node={modelStructure}/>}
                                 </ul>
                             </div>
                         )}
                     </div>
-                    <div ref={containerRef} className="viewer-container" onClick={handleClick} />
+                    <div ref={containerRef} className="viewer-container" onClick={handleClick}/>
                     {isModalOpen && selectedElement && (
                         <div
                             className="modal-container"
-                            style={{ backgroundColor: "#CFC9CC", left: modalPosition.x, top: modalPosition.y }}
+                            style={{backgroundColor: "#CFC9CC", left: modalPosition.x, top: modalPosition.y}}
                         >
                             <div className="modal-header" onMouseDown={startDrag}>
                                 <div className="modal-title">
-                                    <h3 style={{ fontSize: "20px", fontWeight: "500", marginBottom: "10px" }}>
+                                    <h3 style={{fontSize: "20px", fontWeight: "500", marginBottom: "10px"}}>
                                         Комментарии
                                     </h3>
                                     <button className="modal-close" onClick={clearSelection}>
@@ -540,7 +599,7 @@ const Viewer = ({
                             </div>
                             <textarea
                                 className="modal-textarea"
-                                style={{ backgroundColor: "#A9A9A9", color: "black" }}
+                                style={{backgroundColor: "#A9A9A9", color: "black"}}
                                 placeholder="Введите комментарий..."
                                 value={newComment}
                                 onChange={(e) => setNewComment(e.target.value)}
@@ -556,11 +615,34 @@ const Viewer = ({
                             <div className="modal-comments">
                                 <h4>Комментарии:</h4>
                                 <ul>
-                                    {comments[selectedElement.id]?.map((comment, i) => (
-                                        <li key={i}>
-                                            <strong>{comment.elementName}</strong>: {comment.text}
-                                        </li>
-                                    )) || <li>Нет комментариев</li>}
+                                    {(() => {
+                                        const key = String(selectedElement?.id);
+                                        console.log("Комментарии для элемента", selectedElement?.id, comments[key]);
+                                        return comments[key]?.map((comment, i) => (
+                                            <li key={i}>
+                                                <strong
+                                                    style={{cursor: "pointer", textDecoration: "underline"}}
+                                                    onClick={async (e) => {
+                                                        e.stopPropagation();
+                                                        console.log("Подсвечиваем элемент с ID:", comment.elementId);
+                                                        if (!viewer.current) return;
+                                                        try {
+                                                            const model = viewer.current.context.items.pickableIfcModels[0];
+                                                            model.visible = true;
+                                                            await viewer.current.IFC.selector.unpickIfcItems();
+                                                            await viewer.current.IFC.selector.highlightIfcItemsByID(model.modelID, [comment.elementId], true, true);
+                                                            const props = await viewer.current.IFC.loader.ifcManager.getItemProperties(model.modelID, comment.elementId);
+                                                            setSelectedElement(props);
+                                                        } catch (err) {
+                                                            console.warn(err);
+                                                        }
+                                                    }}
+                                                >
+                                                    {comment.elementName}
+                                                </strong>: {comment.text}
+                                            </li>
+                                        )) || <li>Нет комментариев</li>;
+                                    })()}
                                 </ul>
                             </div>
                         </div>

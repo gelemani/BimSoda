@@ -1,6 +1,6 @@
-// export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5080/api';
-const API_URL_HOST: string = 'https://67bd-89-33-8-55.ngrok-free.app';
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || API_URL_HOST;
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5080/api';
+// const API_URL_HOST: string = 'https://67bd-89-33-8-55.ngrok-free.app';
+// export const API_URL = process.env.NEXT_PUBLIC_API_URL || API_URL_HOST;
 
 /* The `API_HEADERS` constant is defining an object that contains headers commonly used in HTTP
 requests. In this case, the headers are specifying that the content type of the request body is JSON
@@ -13,8 +13,8 @@ export const API_HEADERS = {
     'ngrok-skip-browser-warning': true
 };
 
-export const API_PREFIX = '/api';
-// export const API_PREFIX = '';
+// export const API_PREFIX = '/api';
+export const API_PREFIX = '';
 
 export interface LoginRequest {
     login: string;

@@ -35,10 +35,10 @@ const ViewerPage = () => {
 
     return (<>
             <div style={{marginTop: "44px"}}>
-                <Viewer isAuthenticated={true} file={file}/>;
+                <Viewer isAuthenticated={true} file={file}/>
             </div>
         </>
-        )
-        };
+    )
+};
 
-        export default ViewerPage;
+export default ViewerPage;
