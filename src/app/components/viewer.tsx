@@ -78,9 +78,9 @@ const hideMaterial = new THREE.MeshBasicMaterial({
 });
 
 const Viewer = ({
-    isAuthenticated,
-    file,
-}: {
+                    isAuthenticated,
+                    file,
+                }: {
     isAuthenticated: boolean;
     file?: File | null;
 }) => {
@@ -92,17 +92,11 @@ const Viewer = ({
     const [modalPosition, setModalPosition] = useState({ x: 100, y: 100 });
     const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
     const [isDragging, setIsDragging] = useState(false);
-    // --- Model Tree drag state ---
-    // Позиция панели дерева модели
-    const [treePosition, setTreePosition] = useState<{ x: number; y: number }>({ x: 10, y: 10 });
-    const [treeDragStart, setTreeDragStart] = useState<{ x: number; y: number } | null>(null);
-    const [isTreeDragging, setIsTreeDragging] = useState(false);
     const [modelStructure, setModelStructure] = useState<TreeNode | null>(null);
-    const [exploded, setExploded] = useState(false);
-    // --- Model Tree collapsed state ---
+    let [exploded, setExploded] = useState(false);
     const [isTreeCollapsed, setIsTreeCollapsed] = useState(true);
     const toggleTreeCollapsed = () => setIsTreeCollapsed((prev) => !prev);
-
+    const [selectedIDs, setSelectedIDs] = useState<Set<number>>(new Set());
     const viewer = useRef<IfcViewerAPI | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -119,21 +113,6 @@ const Viewer = ({
             window.removeEventListener("mouseup", onMouseUp);
         };
     }, [isDragging, dragStart]);
-
-    useEffect(() => {
-        // Обработчик движения мыши для перетаскивания панели дерева
-        const onTreeMouseMove = (e: MouseEvent) => {
-            if (!isTreeDragging || !treeDragStart) return;
-            setTreePosition({ x: e.clientX - treeDragStart.x, y: e.clientY - treeDragStart.y });
-        };
-        const onTreeMouseUp = () => setIsTreeDragging(false);
-        window.addEventListener("mousemove", onTreeMouseMove);
-        window.addEventListener("mouseup", onTreeMouseUp);
-        return () => {
-            window.removeEventListener("mousemove", onTreeMouseMove);
-            window.removeEventListener("mouseup", onTreeMouseUp);
-        };
-    }, [isTreeDragging, treeDragStart]);
 
     useEffect(() => {
         if (!isAuthenticated || !containerRef.current) return;
@@ -189,7 +168,6 @@ const Viewer = ({
         };
     }, []);
 
-    // --- Modal window drag start handler ---
     const startDrag = useCallback(
         (e: React.MouseEvent<HTMLDivElement>) => {
             if (e.button !== 0) return;
@@ -197,16 +175,6 @@ const Viewer = ({
             setDragStart({ x: e.clientX - modalPosition.x, y: e.clientY - modalPosition.y });
         },
         [modalPosition]
-    );
-
-    // --- Model Tree drag start handler ---
-    const startTreeDrag = useCallback(
-        (e: React.MouseEvent<HTMLDivElement>) => {
-            if (e.button !== 0) return;
-            setIsTreeDragging(true);
-            setTreeDragStart({ x: e.clientX - treePosition.x, y: e.clientY - treePosition.y });
-        },
-        [treePosition]
     );
 
     const handleClick = useCallback(async () => {
@@ -259,7 +227,7 @@ const Viewer = ({
             }
             return updated;
         });
-        setNewComment("");
+        // setNewComment("");
     }, [newComment, selectedElement]);
 
     const openSelectedElementJsonWindow = useCallback(() => {
@@ -286,12 +254,14 @@ const Viewer = ({
 
     const explodeModel = useCallback(async () => {
         if (!viewer.current) return;
+
         const manager = viewer.current.IFC.loader.ifcManager;
         const scene = viewer.current.context.getScene();
         const meshes = viewer.current.context.items.pickableIfcModels;
-        const globalBox = new THREE.Box3();
 
-        // Объединяем bounding box всех мешей
+        if (meshes.length === 0) return;
+
+        const globalBox = new THREE.Box3();
         meshes.forEach((mesh) => globalBox.union(new THREE.Box3().setFromObject(mesh)));
 
         const modelCenter = new THREE.Vector3();
@@ -300,20 +270,34 @@ const Viewer = ({
         const getAllExpressIDsFromGeometry = (mesh: typeof meshes[number]) => {
             const idAttr = mesh.geometry.getAttribute("expressID");
             const ids = new Set<number>();
-            for (let i = 0; i < idAttr.count; i++) ids.add(idAttr.getX(i));
+            for (let i = 0; i < idAttr.count; i++) {
+                ids.add(idAttr.getX(i));
+            }
             return Array.from(ids);
         };
 
         let allExpressIDs: number[] = [];
         for (const mesh of meshes) {
             allExpressIDs.push(...getAllExpressIDsFromGeometry(mesh));
-            mesh.visible = false; // Скрываем исходные меши
+            mesh.visible = false; // Скрываем оригинальные меши
         }
+
         allExpressIDs = Array.from(new Set(allExpressIDs));
 
-        const EXPLODE_DISTANCE = 0;
+        // 6 фиксированных направлений (вектора)
+        const directions = [
+            new THREE.Vector3(1, 0, 0),   // +X
+            new THREE.Vector3(-1, 0, 0),  // -X
+            new THREE.Vector3(0, 1, 0),   // +Y
+            new THREE.Vector3(0, -1, 0),  // -Y
+            new THREE.Vector3(0, 0, 1),   // +Z
+            new THREE.Vector3(0, 0, -1)   // -Z
+        ];
 
-        for (const id of allExpressIDs) {
+        const EXPLODE_DISTANCE = 10; // Расстояние разлёта
+
+        for (let i = 0; i < allExpressIDs.length; i++) {
+            const id = allExpressIDs[i];
             try {
                 const subset = await manager.createSubset({
                     modelID: 0,
@@ -322,37 +306,28 @@ const Viewer = ({
                     removePrevious: false,
                     customID: `explode-${id}`,
                 });
+
                 if (!subset) continue;
 
                 scene.add(subset);
                 subset.visible = true;
 
-                const box = new THREE.Box3().setFromObject(subset);
-                const center = new THREE.Vector3();
-                box.getCenter(center);
+                // Выбираем направление по индексу (по очереди)
+                const direction = directions[i % directions.length];
 
-                // Направление смещения от центра модели к центру подсубмодели
-                const direction = new THREE.Vector3().subVectors(center, modelCenter);
+                // Применяем смещение
+                const offset = direction.clone().multiplyScalar(EXPLODE_DISTANCE);
 
-                if (direction.length() === 0 || !isFinite(direction.length())) {
-                    // Если вектор нулевой или невалидный — задаём случайное направление
-                    direction.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5);
-                }
+                gsap.to(subset.position, {
+                    x: offset.x,
+                    y: offset.y,
+                    z: offset.z,
+                    duration: 2,
+                    ease: "power2.out"
+                });
 
-                direction.normalize();
-
-                // Добавляем небольшое случайное смещение, чтобы части не слипались строго по вектору
-                const randomOffset = new THREE.Vector3(
-                    (Math.random() - 0.5) * 5,
-                    (Math.random() - 0.5) * 5,
-                    (Math.random() - 0.5) * 5
-                );
-
-                const offset = direction.multiplyScalar(EXPLODE_DISTANCE).add(randomOffset);
-
-                gsap.to(subset.position, { x: offset.x, y: offset.y, z: offset.z, duration: 2 });
             } catch (e) {
-                // Игнорируем ошибки
+                console.warn("Ошибка при разборке элемента", id, e);
             }
         }
     }, []);
@@ -374,11 +349,18 @@ const Viewer = ({
         }
     }, []);
 
-    const TreeNodeComponent = ({ node }: { node: TreeNode }) => {
+    const TreeNodeComponent = ({
+                                   node,
+                                   selectedIDs,
+                                   setSelectedIDs,
+                               }: {
+        node: TreeNode;
+        selectedIDs: Set<number>;
+        setSelectedIDs: React.Dispatch<React.SetStateAction<Set<number>>>;
+    }) => {
         const [expanded, setExpanded] = React.useState(true);
-        const [selected, setSelected] = React.useState(false);
-        const [hovered, setHovered] = React.useState(false);
 
+        const selected = selectedIDs.has(node.expressID ?? -1);
         const hasChildren = node.children && node.children.length > 0;
         const toggleExpanded = () => setExpanded(!expanded);
 
@@ -392,19 +374,22 @@ const Viewer = ({
             const subsetId = `show-only-${node.expressID}`;
 
             try {
-                // Remove previous subset if exists
                 const maybeSubset = scene.children.find(obj => obj.name === subsetId);
                 if (maybeSubset) {
                     scene.remove(maybeSubset);
                     model.visible = true;
-                    setSelected(false);
+
+                    setSelectedIDs(prev => {
+                        const updated = new Set(prev);
+                        updated.delete(node.expressID!);
+                        return updated;
+                    });
+
                     return;
                 }
 
-                // Hide main mesh
                 model.visible = false;
 
-                // Create subset only with selected element
                 const subset = await manager.createSubset({
                     modelID,
                     ids: [node.expressID],
@@ -417,27 +402,21 @@ const Viewer = ({
                 if (subset) {
                     subset.name = subsetId;
                     subset.visible = true;
-                    setSelected(true);
-                } else {
-                    console.warn("Subset creation returned null");
+
+                    setSelectedIDs(prev => {
+                        const updated = new Set(prev);
+                        updated.add(node.expressID!);
+                        return updated;
+                    });
                 }
             } catch (err) {
                 console.warn("Subset creation/removal failed:", err);
             }
         };
 
-        const handleMouseEnter = () => {
-            setHovered(true);
-        };
-        const handleMouseLeave = () => {
-            setHovered(false);
-        };
-
         return (
             <li>
-                <div
-                    className="model-tree-row"
-                >
+                <div className="model-tree-row">
                     {hasChildren ? (
                         <div
                             onClick={toggleExpanded}
@@ -447,19 +426,24 @@ const Viewer = ({
                             {expanded ? "▼" : "▶"}
                         </div>
                     ) : (
-                        <div className="model-tree-arrow"/>
+                        <div className="model-tree-arrow" />
                     )}
                     <span
                         className={`model-tree-name${selected ? " selected" : ""}`}
                         onClick={handleSelect}
                     >
-                        {node.name}
-                    </span>
+                    {node.name}
+                </span>
                 </div>
                 {hasChildren && expanded && (
                     <ul className="model-tree-children">
                         {node.children!.map((child) => (
-                            <TreeNodeComponent key={child.expressID} node={child}/>
+                            <TreeNodeComponent
+                                key={child.expressID}
+                                node={child}
+                                selectedIDs={selectedIDs}
+                                setSelectedIDs={setSelectedIDs}
+                            />
                         ))}
                     </ul>
                 )}
@@ -467,68 +451,113 @@ const Viewer = ({
         );
     };
 
+    function clearSelectionTree() {
+        if (!viewer.current) return;
+        const scene = viewer.current.context.getScene();
+        const model = viewer.current.context.items.pickableIfcModels[0];
+        if (!model) return;
+
+        const toRemove = scene.children.filter(child => child.name.startsWith("show-only-"));
+        for (const subset of toRemove) {
+            scene.remove(subset);
+        }
+
+        model.visible = true;
+        setSelectedIDs(new Set());
+    }
+
     return (
         <>
             {isAuthenticated && (
                 <>
-                    <button
-                        onClick={() => {
-                            if (exploded) resetExplodeModel();
-                            else explodeModel();
-                            setExploded((prev) => !prev);
+                    {/* Панель управления снизу */}
+                    <div
+                        style={{
+                            position: "absolute",
+                            bottom: 20,
+                            left: "50%",
+                            transform: "translateX(-50%)",
+                            zIndex: 15,
+                            display: "flex",
+                            gap: 12,
+                            backgroundColor: "#1F252E",
+                            padding: "10px 20px",
+                            borderRadius: 8,
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                            border: "1px solid #ccc"
                         }}
-                        style={{position: "absolute", zIndex: 10, top: 10, right: 10, border: "1px solid white"}}
                     >
-                        Разобрать
-                    </button>
-                    <button
-                        onClick={() => {
-                            if (!viewer.current) {
-                                console.warn("Viewer не инициализирован");
-                                return;
-                            }
-                            try {
-                                const model = viewer.current.context.items.pickableIfcModels[0];
-                                if (!model) {
-                                    console.warn("Модель не найдена");
-                                    return;
+                        <button
+                            onClick={() => {
+                                if (exploded) resetExplodeModel();
+                                else explodeModel();
+                                setExploded((prev) => !prev);
+                            }}
+                            style={{
+                                background: "#2C333A",
+                                color: "white",
+                                // border: "1px solid white",
+                                padding: "6px 12px",
+                                borderRadius: 4,
+                                cursor: "pointer"
+                            }}
+                        >
+                            {!exploded ? "Разобрать" : "Собрать"}
+                        </button>
+
+                        <button
+                            onClick={async () => {
+                                if (!viewer.current) return;
+
+                                try {
+                                    const viewerInstance = viewer.current;
+                                    const model = viewerInstance.context.items.pickableIfcModels[0];
+                                    if (!model) return;
+
+                                    model.visible = true;
+
+                                    const scene = viewerInstance.context.getScene();
+                                    const toRemove = scene.children.filter(obj => obj.name?.startsWith("show-only-"));
+                                    toRemove.forEach(obj => scene.remove(obj));
+
+                                    await viewerInstance.IFC.selector.unpickIfcItems();
+
+                                    const manager = viewerInstance.IFC.loader.ifcManager;
+                                    const allIDs = await manager.getAllItemsOfType(model.modelID, -1, false);
+                                    await manager.createSubset({
+                                        modelID: model.modelID,
+                                        ids: allIDs.map(item => item.expressID),
+                                        removePrevious: true,
+                                        customID: `reset-visibility-${model.modelID}`
+                                    });
+
+                                    resetExplodeModel();
+                                    setExploded(false);
+                                    clearSelectionTree();
+                                    setSelectedElement(null);
+                                    setIsModalOpen(false);
+                                    setNewComment("");
+                                } catch (err) {
+                                    console.error("Ошибка при сбросе модели:", err);
                                 }
-                                model.visible = true;
-                                console.log("Основная модель сделана видимой");
-
-                                const scene = viewer.current.context.getScene();
-                                const manager = viewer.current.IFC.loader.ifcManager;
-
-                                // Удаляем все subset'ы с именами начинающимися на "show-only-"
-                                const toRemove = scene.children.filter(obj => obj.name?.startsWith("show-only-"));
-                                toRemove.forEach(obj => {
-                                    scene.remove(obj);
-                                    console.log(`Удалён subset ${obj.name}`);
-                                });
-
-                                // Снимаем выделения
-                                viewer.current.IFC.selector.unpickIfcItems();
-                                console.log("Выделение очищено");
-
-                                // Очистка состояния
-                                setSelectedElement(null);
-                                setSelectedCommentsId(null);
-                                setIsModalOpen(false);
-                                console.log("Состояния очищены");
-                            } catch (err) {
-                                console.error("Ошибка при сбросе модели:", err);
-                            }
-                        }}
-                        style={{position: "absolute", zIndex: 10, top: 50, right: 10, border: "1px solid white"}}
-                    >
-                        Сбросить модель
-                    </button>
+                            }}
+                            style={{
+                                background: "#2C333A",
+                                color: "white",
+                                padding: "6px 12px",
+                                borderRadius: 4,
+                                cursor: "pointer"
+                            }}
+                        >
+                            Сбросить модель
+                        </button>
+                    </div>
                     {/* Панель Model Tree с перетаскиванием */}
                     <div
                         style={{
                             position: "absolute",
-                            left: treePosition.x,
-                            top: treePosition.y,
+                            left: 0,
+                            top: 42,
                             zIndex: 20,
                             background: "#1F252E",
                             padding: 0,
@@ -545,7 +574,6 @@ const Viewer = ({
                     >
                         <div
                             style={{
-                                cursor: isTreeDragging ? "grabbing" : "grab",
                                 background: "#2C333A",
                                 borderBottom: "1px solid #444",
                                 padding: "8px 12px",
@@ -556,7 +584,6 @@ const Viewer = ({
                                 alignItems: "center",
                                 justifyContent: "space-between"
                             }}
-                            onMouseDown={startTreeDrag}
                         >
                             <span>Структура модели</span>
                             <button
@@ -576,11 +603,16 @@ const Viewer = ({
                         {!isTreeCollapsed && (
                             <div style={{padding: 10}}>
                                 <ul style={{paddingLeft: 0, marginTop: 0}}>
-                                    {modelStructure && <TreeNodeComponent node={modelStructure}/>}
+                                    {modelStructure && <TreeNodeComponent
+                                        node={modelStructure}
+                                        selectedIDs={selectedIDs}
+                                        setSelectedIDs={setSelectedIDs}
+                                    />}
                                 </ul>
                             </div>
                         )}
                     </div>
+
                     <div ref={containerRef} className="viewer-container" onClick={handleClick}/>
                     {isModalOpen && selectedElement && (
                         <div
@@ -615,34 +647,44 @@ const Viewer = ({
                             <div className="modal-comments">
                                 <h4>Комментарии:</h4>
                                 <ul>
-                                    {(() => {
-                                        const key = String(selectedElement?.id);
-                                        console.log("Комментарии для элемента", selectedElement?.id, comments[key]);
-                                        return comments[key]?.map((comment, i) => (
-                                            <li key={i}>
-                                                <strong
-                                                    style={{cursor: "pointer", textDecoration: "underline"}}
-                                                    onClick={async (e) => {
-                                                        e.stopPropagation();
-                                                        console.log("Подсвечиваем элемент с ID:", comment.elementId);
-                                                        if (!viewer.current) return;
-                                                        try {
-                                                            const model = viewer.current.context.items.pickableIfcModels[0];
-                                                            model.visible = true;
-                                                            await viewer.current.IFC.selector.unpickIfcItems();
-                                                            await viewer.current.IFC.selector.highlightIfcItemsByID(model.modelID, [comment.elementId], true, true);
-                                                            const props = await viewer.current.IFC.loader.ifcManager.getItemProperties(model.modelID, comment.elementId);
-                                                            setSelectedElement(props);
-                                                        } catch (err) {
-                                                            console.warn(err);
-                                                        }
-                                                    }}
-                                                >
-                                                    {comment.elementName}
-                                                </strong>: {comment.text}
-                                            </li>
-                                        )) || <li>Нет комментариев</li>;
-                                    })()}
+                                    {Object.keys(comments).length === 0 ? (
+                                        <li>Нет комментариев</li>
+                                    ) : (
+                                        Object.entries(comments).map(([elementId, commentList]) =>
+                                            commentList.map((comment, i) => (
+                                                <li key={`${elementId}-${i}`}>
+                                                    <strong
+                                                        style={{cursor: "pointer", textDecoration: "underline"}}
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            if (!viewer.current) return;
+                                                            try {
+                                                                const model = viewer.current.context.items.pickableIfcModels[0];
+                                                                model.visible = true;
+                                                                await viewer.current.IFC.selector.unpickIfcItems();
+                                                                await viewer.current.IFC.selector.highlightIfcItemsByID(
+                                                                    model.modelID,
+                                                                    [comment.elementId],
+                                                                    true,
+                                                                    true
+                                                                );
+                                                                const props = await viewer.current.IFC.loader.ifcManager.getItemProperties(
+                                                                    model.modelID,
+                                                                    comment.elementId
+                                                                );
+                                                                setSelectedElement(props);
+                                                            } catch (err) {
+                                                                console.warn(err);
+                                                            }
+                                                        }}
+                                                    >
+                                                        {comment.elementName}
+                                                    </strong>
+                                                    : {comment.text}
+                                                </li>
+                                            ))
+                                        )
+                                    )}
                                 </ul>
                             </div>
                         </div>

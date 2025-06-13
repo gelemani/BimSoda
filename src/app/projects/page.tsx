@@ -292,7 +292,7 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
 
                             <input
                                 type="text"
-                                placeholder="Название проекта"
+                                placeholder="Название проекта (от 3 символов)"
                                 className="w-full mb-3 p-2 border border-gray-300 rounded text-black"
                                 value={newProject.title}
                                 onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}

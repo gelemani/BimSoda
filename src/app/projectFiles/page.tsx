@@ -323,7 +323,16 @@ const Page = (): React.JSX.Element => {
                                         <div>{truncateFileName(file.fileName)}</div>
                                         <div>{new Date(file.lastModified).toLocaleString()}</div>
                                         <div>{file.contentType || defineContent(file.fileName)}</div>
-                                        <div>{(file.fileSize ? (file.fileSize / 1024).toFixed(2) : "0.00")} KB</div>
+                                        <div>
+                                            {(() => {
+                                                const sizeInKB = file.fileSize ? file.fileSize / 1024 : 0;
+                                                if (sizeInKB >= 1024) {
+                                                    return (sizeInKB / 1024).toFixed(2) + ' Мб';
+                                                } else {
+                                                    return sizeInKB.toFixed(2) + ' Кб';
+                                                }
+                                            })()}
+                                        </div>
                                     </div>
                                 ))
                             )}
