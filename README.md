@@ -1,7 +1,5 @@
 # 🏗️ BimSoda - BIM Viewer & Project Management Platform
 
-![BimSoda Logo](public/logo.png)
-
 ## 📋 Overview
 
 BimSoda is a modern web-based platform for viewing, managing, and collaborating on BIM (Building Information Modeling) projects. Built with Next.js and TypeScript, it provides a powerful interface for working with IFC files and managing project access.
