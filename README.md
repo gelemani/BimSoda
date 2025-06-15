@@ -1,36 +1,203 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🏗️ BimSoda - BIM Viewer & Project Management Platform
 
-## Getting Started
+![BimSoda Logo](public/logo.png)
 
-First, run the development server:
+## 📋 Overview
 
+BimSoda is a modern web-based platform for viewing, managing, and collaborating on BIM (Building Information Modeling) projects. Built with Next.js and TypeScript, it provides a powerful interface for working with IFC files and managing project access.
+
+## ✨ Features
+
+### 🎯 Core Features
+- **IFC File Viewer**: Advanced 3D visualization of BIM models
+- **Project Management**: Create and manage BIM projects
+- **Access Control**: Granular access levels (Viewer, Public, Admin)
+- **User Collaboration**: Share projects with team members
+- **Comments System**: Add comments to specific model elements
+- **Collision Detection**: Automatic detection of model collisions
+
+### 🔐 Access Levels
+- **Viewer**: Basic viewing access
+- **Public**: Shared access for team members
+- **Admin**: Full project control
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js 18+ 
+- npm or yarn
+- Modern web browser
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/BimSoda.git
+cd BimSoda
+```
+
+2. Install dependencies:
+```bash
+npm install
+# or
+yarn install
+```
+
+3. Set up environment variables:
+```bash
+cp .env.example .env.local
+```
+Edit `.env.local` with your configuration.
+
+4. Run the development server:
 ```bash
 npm run dev
 # or
 yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🛠️ Tech Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Frontend**: 
+  - Next.js 14
+  - TypeScript
+  - Tailwind CSS
+  - Three.js
+  - IFC.js
 
-## Learn More
+- **Backend**:
+  - ASP.NET Core
+  - Entity Framework
+  - SQL Server
 
-To learn more about Next.js, take a look at the following resources:
+## 📁 Project Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+BimSoda/
+├── src/
+│   ├── app/
+│   │   ├── components/     # Reusable UI components
+│   │   ├── config/        # Configuration files
+│   │   ├── services/      # API services
+│   │   └── types/         # TypeScript type definitions
+│   ├── public/            # Static assets
+│   └── styles/            # Global styles
+├── prisma/                # Database schema
+└── tests/                 # Test files
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🔄 API Integration
 
-## Deploy on Vercel
+### Authentication
+```typescript
+// Login
+POST /api/auth/login
+{
+  "login": "user1",
+  "password": "password"
+}
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+// Register
+POST /api/auth/register
+{
+  "login": "user1",
+  "userName": "John",
+  "userSurname": "Doe",
+  "email": "john@example.com",
+  "password": "password",
+  "companyName": "ACME Corp",
+  "companyPosition": "Architect"
+}
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Projects
+```typescript
+// Create Project
+POST /api/project
+{
+  "creatorId": 1,
+  "title": "New Project"
+}
+
+// Get User Projects
+GET /api/project?userId=1
+```
+
+## 🎨 UI Components
+
+### Project Card
+```tsx
+<ProjectCard
+  title="Project Name"
+  creator="John Doe"
+  accessLevel="viewer"
+  lastModified="2024-03-20"
+/>
+```
+
+### Viewer Component
+```tsx
+<Viewer
+  file={ifcFile}
+  isAuthenticated={true}
+/>
+```
+
+## 🔒 Security
+
+- JWT-based authentication
+- Role-based access control
+- Secure file handling
+- Input validation
+- XSS protection
+
+## 🧪 Testing
+
+```bash
+# Run unit tests
+npm run test
+
+# Run e2e tests
+npm run test:e2e
+```
+
+## 📈 Performance
+
+- Lazy loading of IFC models
+- Optimized 3D rendering
+- Efficient state management
+- Caching strategies
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 👥 Team
+
+- **Lead Developer** - [Your Name]
+- **UI/UX Designer** - [Designer Name]
+- **Backend Developer** - [Backend Dev Name]
+
+## 🙏 Acknowledgments
+
+- IFC.js team for the amazing BIM viewer
+- Next.js team for the framework
+- All contributors and supporters
+
+## 📞 Support
+
+For support, email support@bimsoda.com or join our Slack channel.
+
+---
+
+Made with ❤️ by the BimSoda Team
