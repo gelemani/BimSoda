@@ -52,7 +52,7 @@ const Header: React.FC<HeaderProps> = ({ centralString}) => {
         }
     };
 
-    console.log("Header centralString:", centralString);
+    // console.log("Header centralString:", centralString);
     return (
         <div
             style={{

@@ -1,24 +1,42 @@
 'use client';
 
-import ClipLoader from "react-spinners/ClipLoader";
-
 import React, { useEffect, useState, useRef } from "react";
-import JSZip from "jszip";
+import { useSearchParams, useRouter } from "next/navigation";
+import ClipLoader from "react-spinners/ClipLoader";
 import { apiService } from "@/app/services/api.service";
 import { Project, ProjectFile } from "@/app/config/api";
 import useFileViewer from '@/app/components/hooks/useFileViewer';
-import { useRouter } from "next/navigation";
 import Header from "@/app/components/header";
-import {string} from "postcss-selector-parser";
+import JSZip from "jszip";
 
 function defineContent(fileName: string) {
-    const parts = fileName.split('.');
-    return parts.length > 1 ? `.${parts[parts.length - 1]}` : '';
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    switch (extension) {
+        case 'pdf':
+            return '📄';
+        case 'doc':
+        case 'docx':
+            return '📝';
+        case 'xls':
+        case 'xlsx':
+            return '📊';
+        case 'jpg':
+        case 'jpeg':
+        case 'png':
+            return '🖼️';
+        case 'zip':
+        case 'rar':
+            return '📦';
+        default:
+            return '📁';
+    }
 }
 
-function truncateFileName(name: string, maxLength: number = 34): string {
-    if (name.length <= maxLength) return name;
-    return name.slice(0, maxLength - 3) + '...';
+function truncateFileName(fileName: string, maxLength = 30) {
+    if (fileName.length <= maxLength) return fileName;
+    const extension = fileName.split('.').pop();
+    const name = fileName.slice(0, maxLength - 3);
+    return `${name}...${extension}`;
 }
 
 const Page = (): React.JSX.Element => {
@@ -30,10 +48,9 @@ const Page = (): React.JSX.Element => {
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [companyName, setCompanyName] = useState<string>("");
     const [userName, setUserName] = useState<string>("");
-    const [userMenuOpen, MenuOpen] = useState(false);
-    const { openFileInViewer } = useFileViewer();
     const [error, setError] = useState<string | null>(null);
     const searchInputText: string = 'Поиск файла...';
+    const { openFileInViewer } = useFileViewer();
 
     const [selectedFileId, setSelectedFileId] = useState<number | null>(null);
     const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
@@ -79,14 +96,38 @@ const Page = (): React.JSX.Element => {
 
         const fetchFiles = async () => {
             setIsLoadingFiles(true);
-            const result = await apiService.getUserProjectFiles(userId, currentProjectId);
-            if (isMounted) {
-                if (result.success && result.data) {
-                    setProjectFiles(result.data);
-                } else {
-                    console.error("Ошибка при загрузке файлов проекта:", result.error);
+            try {
+                const result = await apiService.getUserProjectFiles(userId, currentProjectId);
+                if (isMounted) {
+                    if (result.success && Array.isArray(result.data)) {
+                        console.log('Received files data:', result.data);
+                        // Получаем размеры файлов из zip
+                        const zipResult = await apiService.DownloadFilesZip(currentProjectId);
+                        if (zipResult.success && zipResult.data) {
+                            const zip = await JSZip.loadAsync(zipResult.data);
+                            const filesWithSize = result.data.map(file => {
+                                const zipEntry = zip.file(file.fileName);
+                                return {
+                                    ...file,
+                                    fileSize: zipEntry ? (zipEntry as any)._data.uncompressedSize : 0
+                                };
+                            });
+                            setProjectFiles(filesWithSize);
+                        } else {
+                            setProjectFiles(result.data);
+                        }
+                    } else {
+                        console.error("Ошибка при загрузке файлов проекта:", result.error);
+                        setError("Не удалось загрузить файлы проекта");
+                    }
                 }
-                setIsLoadingFiles(false);
+            } catch (error) {
+                console.error("Ошибка при загрузке файлов:", error);
+                setError("Произошла ошибка при загрузке файлов");
+            } finally {
+                if (isMounted) {
+                    setIsLoadingFiles(false);
+                }
             }
         };
 
@@ -98,75 +139,23 @@ const Page = (): React.JSX.Element => {
     }, [userId, currentProjectId]);
 
     useEffect(() => {
-        const project = projects.find(p => p.id === currentProjectId);
-        if (project) {
-            setCurrentProjectTitle(project.title);
-            if (typeof window !== "undefined") {
-                localStorage.setItem("projectTitle", project.title);
-            }
-        }
-    }, [projects, currentProjectId]);
-
-    useEffect(() => {
-        const handleMouseDown = (e: MouseEvent) => {
+        const handleClickOutside = (event: MouseEvent) => {
             const menu = document.getElementById('contextMenu');
-            if (menu && !menu.contains(e.target as Node)) {
+            if (menu && !menu.contains(event.target as Node)) {
                 setContextMenuPos(null);
                 setSelectedFileId(null);
             }
         };
 
-        window.addEventListener("mousedown", handleMouseDown);
-        return () => window.removeEventListener("mousedown", handleMouseDown);
-    }, []);
-
-    useEffect(() => {
-        const fetchZipAndSetFileSizes = async () => {
-            if (!currentProjectId) return;
-
-            try {
-                const result = await apiService.DownloadFilesZip(currentProjectId);
-                if (!result.success || !result.data) {
-                    console.error("Ошибка при загрузке zip-файла");
-                    return;
-                }
-
-                const zip = await JSZip.loadAsync(result.data);
-                const sizesMap: Record<string, number> = {};
-                await Promise.all(
-                    Object.values(zip.files).map(async zipEntry => {
-                        if (!zipEntry.dir) {
-                            const content = await zipEntry.async("uint8array");
-                            sizesMap[zipEntry.name] = content.length;
-                        }
-                    })
-                );
-
-                setProjectFiles(prev =>
-                    prev.map(pf => ({
-                        ...pf,
-                        fileSize: sizesMap[pf.fileName] ?? pf.fileSize
-                    }))
-                );
-            } catch (err) {
-                console.error("Ошибка при обработке zip-файла:", err);
-            }
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
         };
-
-        fetchZipAndSetFileSizes();
-    }, [currentProjectId]);
-
+    }, []);
 
     const filteredFiles = projectFiles.filter(file =>
         file.fileName.toLowerCase().includes(searchTerm.toLowerCase())
     );
-
-    const projectGroups = filteredFiles.reduce((acc, file) => {
-        const pid = file.projectId || 1;
-        if (!acc[pid]) acc[pid] = [];
-        acc[pid].push(file);
-        return acc;
-    }, {} as Record<number, ProjectFile[]>);
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -207,7 +196,17 @@ const Page = (): React.JSX.Element => {
                 const content = await zipEntry.async("blob");
                 const openedFile = new File([content], fileName, { type: "application/octet-stream" });
                 const objectUrl = URL.createObjectURL(openedFile);
-                openFileInViewer({ file: openedFile, url: objectUrl });
+                try {
+                    await openFileInViewer({ 
+                        file: openedFile, 
+                        url: objectUrl,
+                        fileId: file.id 
+                    });
+                } catch (error) {
+                    console.error("Ошибка при открытии файла:", error);
+                    // Если произошла ошибка, пробуем открыть файл напрямую
+                    window.open(objectUrl, '_blank');
+                }
             }
         } catch (err) {
             console.error("Ошибка при работе с zip-файлом:", err);
@@ -239,18 +238,18 @@ const Page = (): React.JSX.Element => {
     };
 
     return (
-        <div className="p-8 bg-background-color text-text-color" style={{ marginTop: 50 }}>
+        <div className="p-8 bg-[#1F252E] text-text-color min-h-screen">
             <Header centralString={currentProjectTitle}/>
 
-            <div className="flex justify-center items-center mb-8 gap-4">
-                <input
-                    type="text"
-                    placeholder={searchInputText}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="px-4 py-2 pr-10 w-full rounded-lg border border-gray-300 text-black"
-                />
-                <div className="mt-0 flex items-center">
+            <div className="flex flex-col gap-8" style={{ marginTop: "44px" }}>
+                <div className="flex justify-center items-center gap-4">
+                    <input
+                        type="text"
+                        placeholder={searchInputText}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="px-4 py-2 pr-10 w-full rounded-lg border border-gray-700 bg-[#242B35] text-gray-300"
+                    />
                     <label style={{ margin: 0 }}>
                         <input
                             id="file-upload"
@@ -273,6 +272,7 @@ const Page = (): React.JSX.Element => {
                                 marginLeft: 0,
                                 marginRight: 0,
                                 display: "inline-block",
+                                whiteSpace: "nowrap"
                             }}
                             onClick={() => document.getElementById("file-upload")?.click()}
                         >
@@ -280,50 +280,49 @@ const Page = (): React.JSX.Element => {
                         </button>
                     </label>
                 </div>
-            </div>
 
-            {isLoadingFiles ? (
-                <div className="flex justify-center items-center h-48">
-                    <ClipLoader size={50} color={"#3B82F6"} loading={true} />
-                </div>
-            ) : Object.entries(projectGroups).length === 0 ? (
-                <p className="text-red-500 mb-6">Нет файлов.</p>
-            ) : (
-                Object.entries(projectGroups).map(([projectId, files]) => (
-                    <div key={projectId} className="mb-8">
-                        <div>
-                            <div className="grid grid-cols-4 font-semibold border-b pb-2 mb-2">
-                                <div>Имя файла</div>
-                                <div>Дата изменения</div>
-                                <div>Тип</div>
-                                <div>Объём</div>
-                            </div>
-                            {files.length === 0 ? (
-                                <p className="text-red-500 mb-6">Нет файлов в этом проекте.</p>
-                            ) : (
-                                files.map((file) => (
-                                    <div
+                {isLoadingFiles ? (
+                    <div className="flex justify-center items-center h-48">
+                        <ClipLoader size={50} color={"#3B82F6"} loading={true} />
+                    </div>
+                ) : error ? (
+                    <p className="text-red-500 mb-6">{error}</p>
+                ) : filteredFiles.length === 0 ? (
+                    <p className="text-red-500 mb-6">Нет файлов.</p>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full bg-[#1F252E] border border-gray-700">
+                            <thead>
+                                <tr className="bg-[#242B35]">
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Имя файла</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Дата изменения</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Тип</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Объём</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-[#1F252E] divide-y divide-gray-700">
+                                {filteredFiles.map((file) => (
+                                    <tr
                                         key={file.id}
-                                        className="grid grid-cols-4 items-center p-2 rounded-lg border hover:bg-gray-100 transition"
-                                        style={{
-                                            backgroundColor: selectedFileId === Number(file.id) ? "rgba(59, 130, 246, 0.2)" : "var(--button-bg)",
-                                            borderColor: selectedFileId === Number(file.id) ? "#2563EB" : "var(--button-hover)",
-                                            color: "inherit",
-                                            cursor: "pointer",
-                                            outline: selectedFileId === Number(file.id) ? "2px solid #3B82F6" : "none",
-                                            outlineOffset: "-2px",
-                                            transition: "all 0.2s ease"
-                                        }}
+                                        className={`hover:bg-[#242B35] cursor-pointer ${
+                                            selectedFileId === file.id ? 'bg-[#2A3341]' : ''
+                                        }`}
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            setSelectedFileId(Number(file.id));
+                                            setSelectedFileId(file.id);
                                             setContextMenuPos({x: e.clientX + 12, y: e.clientY});
                                         }}
                                     >
-                                        <div>{truncateFileName(file.fileName)}</div>
-                                        <div>{new Date(file.lastModified).toLocaleString()}</div>
-                                        <div>{file.contentType || defineContent(file.fileName)}</div>
-                                        <div>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                                            {truncateFileName(file.fileName)}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                                            {new Date(file.lastModified).toLocaleString()}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                                            {file.contentType || defineContent(file.fileName)}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                                             {(() => {
                                                 const sizeInKB = file.fileSize ? file.fileSize / 1024 : 0;
                                                 if (sizeInKB >= 1024) {
@@ -332,14 +331,14 @@ const Page = (): React.JSX.Element => {
                                                     return sizeInKB.toFixed(2) + ' Кб';
                                                 }
                                             })()}
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
-                ))
-            )}
+                )}
+            </div>
 
             {contextMenuPos && selectedFileId !== null && (() => {
                 const file = projectFiles.find(f => f.id === selectedFileId);
@@ -352,8 +351,8 @@ const Page = (): React.JSX.Element => {
                             top: contextMenuPos.y,
                             left: contextMenuPos.x,
                             backgroundColor: "#1F252E",
-                            border: "none",
-                            boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                            border: "1px solid #2A3341",
+                            boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
                             borderRadius: 6,
                             padding: 8,
                             zIndex: 9999,
@@ -365,9 +364,14 @@ const Page = (): React.JSX.Element => {
                             style={{
                                 padding: "8px 12px",
                                 cursor: "pointer",
-                                borderBottom: "1px solid #eee",
+                                borderBottom: "1px solid #2A3341",
+                                color: "#E5E7EB",
                             }}
-                            onClick={() => handleOpenZipFile(currentProjectId, file)}
+                            onClick={() => {
+                                handleOpenZipFile(currentProjectId, file);
+                                setContextMenuPos(null);
+                                setSelectedFileId(null);
+                            }}
                         >
                             Открыть
                         </div>
@@ -375,13 +379,16 @@ const Page = (): React.JSX.Element => {
                             style={{
                                 padding: "8px 12px",
                                 cursor: "pointer",
-                                borderBottom: "1px solid #eee",
+                                borderBottom: "1px solid #2A3341",
+                                color: "#E5E7EB",
                             }}
                             onClick={() => {
                                 const newName = prompt("Введите новое имя файла:", file.fileName);
                                 if (newName && newName.trim() && newName !== file.fileName) {
                                     handleRenameFile(file.id, newName.trim());
                                 }
+                                setContextMenuPos(null);
+                                setSelectedFileId(null);
                             }}
                         >
                             Переименовать
@@ -390,10 +397,14 @@ const Page = (): React.JSX.Element => {
                             style={{
                                 padding: "8px 12px",
                                 cursor: "pointer",
-                                borderBottom: "1px solid #eee",
-                                // color: "red",
+                                borderBottom: "1px solid #2A3341",
+                                color: "#EF4444",
                             }}
-                            onClick={() => handleDeleteFile(file.id)}
+                            onClick={() => {
+                                handleDeleteFile(file.id);
+                                setContextMenuPos(null);
+                                setSelectedFileId(null);
+                            }}
                         >
                             Удалить
                         </div>
@@ -401,6 +412,7 @@ const Page = (): React.JSX.Element => {
                             style={{
                                 padding: "8px 12px",
                                 cursor: "pointer",
+                                color: "#E5E7EB",
                             }}
                             onClick={() => {
                                 setSelectedFileId(null);

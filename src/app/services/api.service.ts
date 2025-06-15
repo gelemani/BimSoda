@@ -9,10 +9,28 @@ import {
     Project,
     ProjectFile,
     StoredUserInfo,
-    API_PREFIX
+    API_PREFIX,
+    ProjectCreate
 } from '../config/api';
-import {id} from "postcss-selector-parser";
 
+interface Comment {
+    id: number;
+    text: string;
+    elementName: string;
+    elementId: number;
+    userId: number;
+    userName: string;
+    createdAt: string;
+}
+
+interface PreservedResponse<T> {
+    $id: string;
+    $values?: T[];
+    total?: number;
+    users?: T[] | { $id: string; $values: T[] };
+    projects?: T[] | { $id: string; $values: T[] };
+    data?: T[];
+}
 
 const isClient = typeof window !== 'undefined';
 
@@ -92,7 +110,7 @@ class ApiService {
         try {
             // Регистрация пользователя
             console.log("Данные для регистрации пользователя:", userData);
-            const userResponse = await this.axiosInstance.post<ApiResponse<AuthResponse>>(`${API_PREFIX}/auth/register`, userData);
+            const userResponse = await this.axiosInstance.post<ApiResponse<AuthResponse>>(`${API_PREFIX}/Auth/register`, userData);
             console.log("Ответ от сервера (пользователь):", userResponse.data);
 
             if (!userResponse.data.success || !userResponse.data.data?.token) {
@@ -199,21 +217,129 @@ class ApiService {
         }
     }
 
+    async getAllUsers(): Promise<StoredUserInfo[]> {
+        try {
+            console.log("[ApiService] Fetching all users...");
+            const response = await this.axiosInstance.get<PreservedResponse<StoredUserInfo>>(`${API_PREFIX}/Project/users`);
+            console.log("[ApiService] Raw users response:", response);
+
+            // Handle both regular and preserved reference formats
+            let users: StoredUserInfo[] = [];
+            if (response.data.$values) {
+                users = response.data.$values;
+            } else if (response.data.users) {
+                if (Array.isArray(response.data.users)) {
+                    users = response.data.users;
+                } else if (response.data.users.$values) {
+                    users = response.data.users.$values;
+                }
+            }
+
+            if (!Array.isArray(users)) {
+                console.error("[ApiService] Invalid users response format:", response.data);
+                return [];
+            }
+
+            return users.map(user => ({
+                ...user,
+                password: "",
+                confirmPassword: "",
+                companyName: "",
+                companyPosition: ""
+            }));
+        } catch (error) {
+            console.error("[ApiService] Error in getAllUsers:", error);
+            if (axios.isAxiosError(error)) {
+                console.error("[ApiService] Error response:", error.response?.data);
+            }
+            return [];
+        }
+    }
+
+    async getAllProjects(): Promise<Project[]> {
+        try {
+            console.log("[ApiService] Fetching all projects...");
+            const response = await this.axiosInstance.get<PreservedResponse<Project>>(`${API_PREFIX}/Project/list`);
+            console.log("[ApiService] Raw projects response:", response);
+
+            // Handle both regular and preserved reference formats
+            let projects: Project[] = [];
+            if (response.data.$values) {
+                projects = response.data.$values;
+            } else if (response.data.projects) {
+                if (Array.isArray(response.data.projects)) {
+                    projects = response.data.projects;
+                } else if (response.data.projects.$values) {
+                    projects = response.data.projects.$values;
+                }
+            }
+
+            if (!Array.isArray(projects)) {
+                console.error("[ApiService] Invalid projects response format:", response.data);
+                return [];
+            }
+
+            return projects.map(project => ({
+                ...project,
+                title: project.title || "Без названия",
+                accessLevel: project.accessLevel || "public",
+                projectFiles: project.projectFiles || [],
+                projectAccessCreate: project.projectAccessCreate || [],
+            }));
+        } catch (error) {
+            console.error("[ApiService] Error in getAllProjects:", error);
+            if (axios.isAxiosError(error)) {
+                console.error("[ApiService] Error response:", error.response?.data);
+            }
+            return [];
+        }
+    }
+
     async getUserProjects(userId: string): Promise<ApiResponse<Project[]>> {
         try {
-            const response = await this.axiosInstance.get<ApiResponse<Project[]>>(`${API_PREFIX}/Project?userId=${userId}`);
-            console.log("Полученные проекты:", response.data);
-            return response.data;
+            console.log(`[ApiService] Fetching projects for user ${userId}...`);
+            const response = await this.axiosInstance.get<PreservedResponse<Project>>(`${API_PREFIX}/Project?userId=${userId}`);
+            console.log("[ApiService] Raw user projects response:", response);
+
+            // Handle both regular and preserved reference formats
+            let projects: Project[] = [];
+            if (response.data.$values) {
+                projects = response.data.$values;
+            } else if (Array.isArray(response.data)) {
+                projects = response.data;
+            }
+
+            if (!Array.isArray(projects)) {
+                console.error("[ApiService] Invalid user projects response format:", response.data);
+                return {
+                    success: false,
+                    error: "Invalid response format"
+                };
+            }
+
+            return {
+                success: true,
+                data: projects.map(project => ({
+                    ...project,
+                    title: project.title || "Без названия",
+                    accessLevel: project.accessLevel || "public",
+                    projectFiles: project.projectFiles || [],
+                    projectAccessCreate: project.projectAccessCreate || [],
+                }))
+            };
         } catch (error) {
-            console.error("Ошибка при получении проектов:", error);
+            console.error("[ApiService] Error in getUserProjects:", error);
+            if (axios.isAxiosError(error)) {
+                console.error("[ApiService] Error response:", error.response?.data);
+            }
             return {
                 success: false,
-                error: axios.isAxiosError(error) ? error.response?.data?.message || error.message : 'Неизвестная ошибка',
+                error: axios.isAxiosError(error) ? error.response?.data?.message || error.message : 'Unknown error'
             };
         }
     }
 
-    async postUserProject(project: Omit<Project, "id">): Promise<Project | undefined> {
+    async postUserProject(project: ProjectCreate): Promise<Project | undefined> {
         try {
             const response = await this.axiosInstance.post<Project>(`${API_PREFIX}/Project`, project);
             console.log("Созданный проект:", response.data);
@@ -255,7 +381,7 @@ class ApiService {
 
             console.log("Полученные файлы проекта:", data);
 
-            // Если API вернул просто массив файлов, оборачиваем вручную
+            // Handle different response formats
             if (Array.isArray(data)) {
                 return {
                     success: true,
@@ -263,30 +389,46 @@ class ApiService {
                 };
             }
 
-            // Если API вернул стандартный ApiResponse
+            // Handle preserved reference format
+            if (data.$values && Array.isArray(data.$values)) {
+                return {
+                    success: true,
+                    data: data.$values,
+                };
+            }
+
+            // Handle standard ApiResponse format
             if (data.success !== undefined) {
                 return data;
             }
 
-            // Иначе формат неожиданный
+            // If we get here, the format is unexpected
+            console.error("Unexpected response format:", data);
             return {
                 success: false,
-                error: "Неверный формат ответа от сервера",
+                error: `Неверный формат ответа от сервера: ${JSON.stringify(data)}`,
             };
         } catch (error: unknown) {
             console.error("Ошибка при получении файлов проекта:", error);
 
             if (axios.isAxiosError(error)) {
-                console.error("Server error details:", error.response);
+                const status = error.response?.status;
+                const errorMessage = error.response?.data?.message || error.message;
+                console.error("Server error details:", {
+                    status,
+                    message: errorMessage,
+                    data: error.response?.data
+                });
+                
                 return {
                     success: false,
-                    error: error.message || "Неизвестная ошибка",
+                    error: `Ошибка сервера (${status}): ${errorMessage}`,
                 };
             }
 
             return {
                 success: false,
-                error: "Неизвестная ошибка",
+                error: error instanceof Error ? error.message : "Неизвестная ошибка",
             };
         }
     }
@@ -389,6 +531,180 @@ class ApiService {
         } catch (error) {
             console.error("Ошибка при обновлении имени файла:", error);
             throw error;
+        }
+    }
+
+    async addComment(fileId: number, comment: { text: string; elementName: string; elementId: number }): Promise<ApiResponse<Comment>> {
+        console.log('Adding comment:', { fileId, comment });
+        try {
+            const response = await this.axiosInstance.post<ApiResponse<Comment>>(
+                `${API_PREFIX}/Project/files/${fileId}/comments`,
+                comment
+            );
+            console.log('Add comment response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('Error adding comment:', error);
+            if (axios.isAxiosError(error)) {
+                console.error('Error details:', {
+                    status: error.response?.status,
+                    data: error.response?.data,
+                    headers: error.response?.headers
+                });
+            }
+            throw error;
+        }
+    }
+
+    async getComments(fileId: number): Promise<ApiResponse<Comment[]>> {
+        console.log('Getting comments for file:', fileId);
+        try {
+            const response = await this.axiosInstance.get<ApiResponse<Comment[]>>(
+                `${API_PREFIX}/Project/files/${fileId}/comments`
+            );
+            console.log('Get comments response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('Error getting comments:', error);
+            if (axios.isAxiosError(error)) {
+                console.error('Error details:', {
+                    status: error.response?.status,
+                    data: error.response?.data,
+                    headers: error.response?.headers
+                });
+            }
+            throw error;
+        }
+    }
+
+    async deleteComment(fileId: number, commentId: number): Promise<ApiResponse<void>> {
+        console.log('Deleting comment:', { fileId, commentId });
+        try {
+            const response = await this.axiosInstance.delete<ApiResponse<void>>(
+                `${API_PREFIX}/Project/files/${fileId}/comments/${commentId}`
+            );
+            console.log('Delete comment response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('Error deleting comment:', error);
+            if (axios.isAxiosError(error)) {
+                console.error('Error details:', {
+                    status: error.response?.status,
+                    data: error.response?.data,
+                    headers: error.response?.headers
+                });
+            }
+            throw error;
+        }
+    }
+
+    async getProjectFiles(projectId: number): Promise<ApiResponse<ProjectFile[]>> {
+        try {
+            console.log(`[ApiService] Fetching files for project ${projectId}...`);
+            const response = await this.axiosInstance.get(`${API_PREFIX}/Project/${projectId}/files`);
+            console.log("[ApiService] Raw response:", response);
+            console.log("[ApiService] Response data:", JSON.stringify(response.data, null, 2));
+            console.log("[ApiService] Response data type:", typeof response.data);
+            console.log("[ApiService] Response data keys:", Object.keys(response.data));
+            console.log("[ApiService] Response data.$values:", response.data.$values);
+            console.log("[ApiService] Response data.$values type:", typeof response.data.$values);
+            console.log("[ApiService] Response data.$values is array:", Array.isArray(response.data.$values));
+            console.log("[ApiService] Response data.$values length:", response.data.$values?.length);
+
+            // Try different response formats
+            let files: ProjectFile[] = [];
+
+            // Format 1: Direct array
+            if (Array.isArray(response.data)) {
+                console.log("[ApiService] Format 1: Direct array");
+                files = response.data;
+            }
+            // Format 2: { $id: string, $values: ProjectFile[] }
+            else if (response.data.$values) {
+                console.log("[ApiService] Format 2: $values array");
+                if (Array.isArray(response.data.$values)) {
+                    files = response.data.$values;
+                } else if (typeof response.data.$values === 'object') {
+                    // Handle case where $values might be an object with array properties
+                    const possibleArrays = Object.entries(response.data.$values)
+                        .filter(([_, value]) => Array.isArray(value))
+                        .map(([key, value]) => ({ key, value }));
+                    
+                    if (possibleArrays.length > 0) {
+                        console.log("[ApiService] Found array in $values:", possibleArrays);
+                        files = possibleArrays[0].value as ProjectFile[];
+                    }
+                }
+            }
+            // Format 3: { data: ProjectFile[] }
+            else if (response.data.data && Array.isArray(response.data.data)) {
+                console.log("[ApiService] Format 3: data array");
+                files = response.data.data;
+            }
+            // Format 4: { files: ProjectFile[] }
+            else if (response.data.files && Array.isArray(response.data.files)) {
+                console.log("[ApiService] Format 4: files array");
+                files = response.data.files;
+            }
+            // Format 5: { projectFiles: ProjectFile[] }
+            else if (response.data.projectFiles && Array.isArray(response.data.projectFiles)) {
+                console.log("[ApiService] Format 5: projectFiles array");
+                files = response.data.projectFiles;
+            }
+            // Format 6: Single object with array properties
+            else {
+                console.log("[ApiService] Format 6: Checking for array properties");
+                const possibleArrays = Object.entries(response.data)
+                    .filter(([_, value]) => Array.isArray(value))
+                    .map(([key, value]) => ({ key, value }));
+                
+                if (possibleArrays.length > 0) {
+                    console.log("[ApiService] Found array properties:", possibleArrays);
+                    // Use the first array we find
+                    files = possibleArrays[0].value as ProjectFile[];
+                }
+            }
+
+            console.log("[ApiService] Extracted files:", files);
+            console.log("[ApiService] Files is array:", Array.isArray(files));
+            console.log("[ApiService] Files length:", files.length);
+
+            // If we have an empty array, that's valid - just return it
+            if (Array.isArray(files)) {
+                const processedFiles = files.map(file => ({
+                    ...file,
+                    fileName: file.fileName || "Без названия",
+                    fileType: file.fileType || file.contentType || "unknown",
+                    fileSize: file.fileSize || 0,
+                    uploadDate: file.uploadDate || file.createdAt || new Date().toISOString(),
+                    userId: file.userId || 0,
+                    filePath: file.filePath || ""
+                }));
+
+                console.log("[ApiService] Processed files:", processedFiles);
+
+                return {
+                    success: true,
+                    data: processedFiles
+                };
+            }
+
+            console.error("[ApiService] Invalid project files response format:", response.data);
+            return {
+                success: false,
+                error: "Invalid response format"
+            };
+        } catch (error) {
+            console.error("[ApiService] Error in getProjectFiles:", error);
+            if (axios.isAxiosError(error)) {
+                console.error("[ApiService] Error response:", error.response?.data);
+                console.error("[ApiService] Error status:", error.response?.status);
+                console.error("[ApiService] Error headers:", error.response?.headers);
+            }
+            return {
+                success: false,
+                error: axios.isAxiosError(error) ? error.response?.data?.message || error.message : 'Unknown error'
+            };
         }
     }
 }

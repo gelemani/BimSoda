@@ -13,7 +13,7 @@ export const API_HEADERS = {
     'ngrok-skip-browser-warning': true
 };
 
-// export const API_PREFIX = '/api';
+// Используем пустой префикс, так как API_URL уже содержит /api
 export const API_PREFIX = '';
 
 export interface LoginRequest {
@@ -48,6 +48,30 @@ export interface ApiResponse<T> {
     error?: string;
 }
 
+export interface StoredUserInfo {
+    id: number
+    login: string;
+    userName: string;
+    userSurname: string;
+    email: string;
+    password: string;
+    confirmPassword: string;
+    companyName: string;
+    companyPosition: string;
+}
+
+export interface Project {
+    id: number;
+    creatorId: number;
+    // UserInfo: StoredUserInfo[];
+    title: string;
+    createdAt: string;
+    lastModified: string;
+    accessLevel: string;
+    projectFiles: ProjectFile[];
+    projectAccessCreate: ProjectAccessCreate[];
+    projectAccess?: ProjectAccess[];
+}
 
 export interface ProjectFile {
     id: number;
@@ -58,25 +82,38 @@ export interface ProjectFile {
     lastModified: string;
     contentType: string;
     fileSize?: number;
+    fileType?: string;
+    uploadDate?: string;
+    userId?: number;
+    filePath?: string;
 }
 
-export interface Project {
+export interface ProjectAccess {
     id: number;
+    projectId: number;
     userId: number;
+    accessLevel: string;
+    grantedAt: string;
+    project: Project;
+    StoredUserInfo: StoredUserInfo[];
+}
+
+export interface ProjectAccessCreate {
+    userId: number;
+    accessLevel: string;
+    grantedAt: string;
+}
+
+export interface ProjectCreate {
+    creatorId: number;
     title: string;
     createdAt: string;
     lastModified: string;
     accessLevel: string;
     projectFiles: ProjectFile[];
-}
-
-export interface StoredUserInfo {
-    login: string;
-    userName: string;
-    userSurname: string;
-    email: string;
-    password: string;
-    confirmPassword: string;
-    companyName: string;
-    companyPosition: string;
+    projectAccesses: {
+        userId: number;
+        accessLevel: string;
+        grantedAt: string;
+    }[];
 }

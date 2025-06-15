@@ -3,7 +3,6 @@
 import React, { JSX, useEffect, useState } from 'react';
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
-import header from "@/app/components/header";
 import Header from "@/app/components/header";
 
 export default function DocsViewerPage() {
