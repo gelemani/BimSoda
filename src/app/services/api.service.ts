@@ -350,13 +350,27 @@ class ApiService {
         }
     }
 
-    async putUserProject(projectId: number, project: Project): Promise<void> {
+    async putUserProject(projectId: number, project: Project): Promise<ApiResponse<Project>> {
         try {
-            await this.axiosInstance.put(`${API_PREFIX}/Project/${projectId}`, project);
-            console.log("Проект обновлен");
+            console.log("[ApiService] Updating project:", project);
+            const response = await this.axiosInstance.put(`/Project/${projectId}`, project);
+            console.log("[ApiService] Project update response:", response);
+            return {
+                success: true,
+                data: response.data
+            };
         } catch (error) {
-            console.error("Ошибка при обновлении проекта:", error);
-            throw error; // или просто возвращай, если хочешь обработать ошибку отдельно
+            console.error("[ApiService] Error updating project:", error);
+            if (axios.isAxiosError(error)) {
+                return {
+                    success: false,
+                    error: error.response?.data?.message || "Failed to update project"
+                };
+            }
+            return {
+                success: false,
+                error: "Failed to update project"
+            };
         }
     }
 

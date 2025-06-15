@@ -63,14 +63,17 @@ export interface StoredUserInfo {
 export interface Project {
     id: number;
     creatorId: number;
-    // UserInfo: StoredUserInfo[];
     title: string;
     createdAt: string;
     lastModified: string;
     accessLevel: string;
     projectFiles: ProjectFile[];
-    projectAccessCreate: ProjectAccessCreate[];
-    projectAccess?: ProjectAccess[];
+    projectAccesses: {
+        userId: number;
+        accessLevel: string;
+        grantedAt: string;
+    }[];
+    projectAccessCreate?: ProjectAccessCreate[];
 }
 
 export interface ProjectFile {

@@ -9,21 +9,28 @@ export interface User {
 
 export interface Project {
     id: number;
-    name: string;
-    description?: string;
+    creatorId: number;
+    title: string;
     createdAt: string;
-    updatedAt: string;
-    ownerId: number;
+    lastModified: string;
+    accessLevel: string;
+    projectFiles: ProjectFile[];
+    projectAccesses: ProjectAccess[];
+    projectAccessCreate?: ProjectAccess[];
 }
 
 export interface ProjectFile {
     id: number;
     fileName: string;
-    fileSize?: number;
-    contentType?: string;
-    projectId: number;
-    lastModified: string;
-    uploadedBy: number;
+    filePath: string;
+    uploadDate: string;
+    userId: number;
+}
+
+export interface ProjectAccess {
+    userId: number;
+    accessLevel: string;
+    grantedAt: string;
 }
 
 export interface ProjectUser {

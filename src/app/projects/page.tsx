@@ -47,6 +47,7 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
         lastModified: new Date().toISOString(),
         accessLevel: "viewer",
         projectFiles: [],
+        projectAccesses: [],
         projectAccessCreate: []
     });
     const {companyName, userName} = useUserContext();
@@ -150,7 +151,7 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
             const now = new Date().toISOString();
 
             // Create project access entries
-            const projectAccesses = newProject.projectAccessCreate.map(access => ({
+            const projectAccesses = (newProject.projectAccessCreate || []).map(access => ({
                 userId: access.userId,
                 accessLevel: access.accessLevel,
                 grantedAt: now
@@ -179,7 +180,12 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
             const result = await apiService.postUserProject(newProjectData);
             
             if (!result) {
-                throw new Error("Failed to create project");
+                console.error("Failed to create project");
+                setNotification({
+                    message: "Не удалось создать проект. Пожалуйста, попробуйте снова.",
+                    type: 'error'
+                });
+                return;
             }
 
             // Upload files if any were selected
@@ -225,10 +231,11 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
         }
     };
 
-    const handleEditProject = (proj: any) => {
+    const handleEditProject = (proj: Project) => {
         setNewProject({
             ...proj,
-            projectAccessCreate: proj.projectAccessCreate || [], // ← защита от undefined
+            projectAccessCreate: proj.projectAccessCreate ?? [],
+            projectAccesses: proj.projectAccesses ?? []
         });
         setEditingProjectId(proj.id);
         setShowProjectForm(true);
@@ -238,19 +245,36 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
         if (editingProjectId === null) return;
 
         if (!newProject.title.trim()) {
-            alert("Название проекта не может быть пустым");
+            setNotification({
+                message: "Название проекта не может быть пустым",
+                type: 'error'
+            });
             return;
         }
 
+        const now = new Date().toISOString();
         const updatedProject: Project = {
-            ...newProject,
             id: editingProjectId,
-            lastModified: new Date().toISOString(),
-            accessLevel: newProject.accessLevel === 'private' ? 'viewer' : newProject.accessLevel
+            creatorId: newProject.creatorId,
+            title: newProject.title,
+            createdAt: newProject.createdAt,
+            lastModified: now,
+            accessLevel: newProject.accessLevel === 'private' ? 'viewer' : newProject.accessLevel,
+            projectFiles: Array.isArray(newProject.projectFiles) ? newProject.projectFiles : [],
+            projectAccesses: (newProject.projectAccessCreate ?? []).map(access => ({
+                userId: access.userId,
+                accessLevel: access.accessLevel,
+                grantedAt: now
+            }))
         };
 
         try {
-            await apiService.putUserProject(editingProjectId, updatedProject);
+            console.log("[ProjectsPage] Updating project with data:", JSON.stringify(updatedProject, null, 2));
+            const response = await apiService.putUserProject(editingProjectId, updatedProject);
+            
+            if (!response.success) {
+                throw new Error(response.error || "Failed to update project");
+            }
 
             // Upload new files if any were selected
             if (selectedFiles.length > 0) {
@@ -265,22 +289,38 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
 
             // Refresh projects list
             const userId = parseInt(localStorage.getItem("userId") || "0");
-            const response = await apiService.getUserProjects(String(userId));
-            if (response.success && Array.isArray(response.data)) {
-                setProjects(response.data);
-                const updated = response.data.find(p => p.id === editingProjectId);
+            const projectsResponse = await apiService.getUserProjects(String(userId));
+            if (projectsResponse.success && Array.isArray(projectsResponse.data)) {
+                setProjects(projectsResponse.data);
+                const updated = projectsResponse.data.find(p => p.id === editingProjectId);
                 if (updated) {
                     localStorage.setItem("projectId", updated.id.toString());
                     localStorage.setItem("projectTitle", updated.title);
                 }
             }
 
+            setNotification({
+                message: "Проект успешно обновлен",
+                type: 'success'
+            });
+
             setEditingProjectId(null);
             setShowProjectForm(false);
             setSelectedFiles([]);
         } catch (error) {
-            console.error("Ошибка обновления проекта:", error);
-            alert("Не удалось обновить проект. Пожалуйста, попробуйте снова.");
+            console.error("[ProjectsPage] Error updating project:", error);
+            if (axios.isAxiosError(error)) {
+                const errorMessage = error.response?.data?.message || "Не удалось обновить проект";
+                setNotification({
+                    message: errorMessage,
+                    type: 'error'
+                });
+            } else {
+                setNotification({
+                    message: "Не удалось обновить проект. Пожалуйста, попробуйте снова.",
+                    type: 'error'
+                });
+            }
         }
     };
 
@@ -299,7 +339,7 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
             }
         } catch (error) {
             console.error("Ошибка при удалении проекта:", error);
-            alert("Не удалось удалить проект. Пожалуйста, попробуйте снова.");
+            // alert("Не удалось удалить проект. Пожалуйста, попробуйте снова.");
         }
     };
 
@@ -361,6 +401,7 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
                                 lastModified: new Date().toISOString(),
                                 accessLevel: "viewer",
                                 projectFiles: [],
+                                projectAccesses: [],
                                 projectAccessCreate: [],
                             });
                             setEditingProjectId(null);
@@ -456,9 +497,9 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
                                             <p>
                                                 <b>Доступ:</b> {proj.accessLevel === 'private' ? 'viewer' : proj.accessLevel}
                                             </p>
-                                            {proj.projectAccess && proj.projectAccess.length > 0 && (
+                                            {proj.projectAccesses && proj.projectAccesses.length > 0 && (
                                                 <p>
-                                                    <b>Доступ предоставлен:</b> {proj.projectAccess.length} пользователям
+                                                    <b>Доступ предоставлен:</b> {proj.projectAccesses.length} пользователям
                                                 </p>
                                             )}
                                         </div>
@@ -519,12 +560,12 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
                                         const id = Number(e.target.value);
                                         if (
                                             id &&
-                                            !newProject.projectAccessCreate.some(ua => ua.userId === id)
+                                            !(newProject.projectAccessCreate ?? []).some(ua => ua.userId === id)
                                         ) {
                                             setNewProject({
                                                 ...newProject,
                                                 projectAccessCreate: [
-                                                    ...newProject.projectAccessCreate,
+                                                    ...(newProject.projectAccessCreate ?? []),
                                                     {
                                                         userId: id,
                                                         accessLevel: 'viewer',
@@ -541,7 +582,7 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
                                         Выберите пользователя...
                                     </option>
                                     {allUsers
-                                        .filter(u => !newProject.projectAccessCreate.some(ua => ua.userId === u.id))
+                                        .filter(u => !(newProject.projectAccessCreate ?? []).some(ua => ua.userId === u.id))
                                         .map(user => (
                                             <option key={user.id} value={user.id}>
                                                 {user.userName} {user.userSurname} ({user.email})
@@ -550,7 +591,7 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
                                 </select>
 
                                 <div className="mt-2 max-h-32 overflow-y-auto">
-                                    {newProject.projectAccessCreate.map((ua: any) => {
+                                    {(newProject.projectAccessCreate ?? []).map((ua) => {
                                         const user = allUsers.find(u => u.id === ua.userId);
                                         return (
                                             <div key={ua.userId} className="flex justify-between items-center mt-1 bg-gray-700 p-2 rounded">
@@ -563,7 +604,7 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
                                                     onClick={() => {
                                                         setNewProject({
                                                             ...newProject,
-                                                            projectAccessCreate: newProject.projectAccessCreate.filter((item: any) => item.userId !== ua.userId),
+                                                            projectAccessCreate: (newProject.projectAccessCreate ?? []).filter(item => item.userId !== ua.userId),
                                                         });
                                                     }}
                                                 >
