@@ -1,5 +1,5 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5080/api';
-// const API_URL_HOST: string = 'https://67bd-89-33-8-55.ngrok-free.app';
+// export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5080/api';
+const API_URL_HOST: string = 'https://excitingly-chummy-alligator.cloudpub.ru/index.html';
 // export const API_URL = process.env.NEXT_PUBLIC_API_URL || API_URL_HOST;
 
 /* The `API_HEADERS` constant is defining an object that contains headers commonly used in HTTP
