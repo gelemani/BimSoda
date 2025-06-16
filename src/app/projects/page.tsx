@@ -549,9 +549,9 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
                                             {level.charAt(0).toUpperCase() + level.slice(1)}
                                         </label>
                                     ))}
-                                </div> */}
+                                </div>
                             </div>
-
+ */}
                             <div className="mb-4">
                                 <label className="block mb-2 font-medium">Добавить пользователей:</label>
                                 <select
