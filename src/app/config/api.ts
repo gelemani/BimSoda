@@ -1,6 +1,6 @@
 // export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5080/api';
-const API_URL: string = 'https://excitingly-chummy-alligator.cloudpub.ru/index.html';
-// export const API_URL = process.env.NEXT_PUBLIC_API_URL || API_URL_HOST;
+const API_URL_HOST: string = 'https://excitingly-chummy-alligator.cloudpub.ru/index.html';
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || API_URL_HOST;
 
 /* The `API_HEADERS` constant is defining an object that contains headers commonly used in HTTP
 requests. In this case, the headers are specifying that the content type of the request body is JSON
@@ -14,7 +14,7 @@ export const API_HEADERS = {
 };
 
 // Используем пустой префикс, так как API_URL уже содержит /api
-export const API_PREFIX = 'api'; 
+export const API_PREFIX = ''; 
 
 export interface LoginRequest {
     login: string;
