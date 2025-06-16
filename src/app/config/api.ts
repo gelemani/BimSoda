@@ -14,7 +14,7 @@ export const API_HEADERS = {
 };
 
 // Используем пустой префикс, так как API_URL уже содержит /api
-export const API_PREFIX = 'api';
+export const API_PREFIX = 'api'; 
 
 export interface LoginRequest {
     login: string;
