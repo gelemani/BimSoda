@@ -531,7 +531,7 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
                                 onChange={(e) => setNewProject({...newProject, title: e.target.value})}
                             />
 
-                            <div className="mb-3">
+{/*                             <div className="mb-3">
                                 <label className="block mb-2 font-medium">Уровень доступа:</label>
                                 <div className="flex flex-col gap-2">
                                     {['viewer', 'public', 'admin'].map(level => (
@@ -549,7 +549,7 @@ const ProjectsPageContent = ({ onSelectProject = () => {} }: ProjectsPageProps) 
                                             {level.charAt(0).toUpperCase() + level.slice(1)}
                                         </label>
                                     ))}
-                                </div>
+                                </div> */}
                             </div>
 
                             <div className="mb-4">
