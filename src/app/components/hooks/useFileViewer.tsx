@@ -17,7 +17,7 @@ const useFileViewer = () => {
         sessionStorage.setItem('viewerFileId', String(fileId));
 
         // Потом открываем окно
-        const viewerWindow = window.open(`/${target}`, '_blank');
+        const viewerWindow = window.open(`/${target}`);
         if (!viewerWindow) {
             alert("Браузер заблокировал всплывающее окно. Разрешите его вручную.");
         }
