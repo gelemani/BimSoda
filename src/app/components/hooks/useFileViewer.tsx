@@ -17,11 +17,12 @@ const useFileViewer = () => {
         sessionStorage.setItem('viewerFileId', String(fileId));
 
         // Потом открываем окно
+        router.push(`/${target}`);
         // const viewerWindow = window.open(`/${target}`);
-        const viewerWindow = router.push(`/${target}`);
-        if (!viewerWindow) {
-            alert("Браузер заблокировал всплывающее окно. Разрешите его вручную.");
-        }
+        // const viewerWindow = router.push(`/${target}`);
+        // if (!viewerWindow) {
+        //     alert("Браузер заблокировал всплывающее окно. Разрешите его вручную.");
+        // }
     };
 
     return { openFileInViewer };
