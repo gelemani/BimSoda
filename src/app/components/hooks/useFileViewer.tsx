@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 
 const useFileViewer = () => {
-    useRouter();
+    const router = useRouter();
 
     const openFileInViewer = ({ file, url, fileId }: { file: File; url: string; fileId: number }) => {
         console.log('Opening file in viewer:', { name: file.name, type: file.type, url, fileId });
@@ -17,7 +17,8 @@ const useFileViewer = () => {
         sessionStorage.setItem('viewerFileId', String(fileId));
 
         // Потом открываем окно
-        const viewerWindow = window.open(`/${target}`);
+        // const viewerWindow = window.open(`/${target}`);
+        const viewerWindow = router.push(`/${target}`);
         if (!viewerWindow) {
             alert("Браузер заблокировал всплывающее окно. Разрешите его вручную.");
         }
