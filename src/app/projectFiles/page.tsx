@@ -205,7 +205,7 @@ const Page = (): React.JSX.Element => {
                 } catch (error) {
                     console.error("Ошибка при открытии файла:", error);
                     // Если произошла ошибка, пробуем открыть файл напрямую
-                    window.open(objectUrl, '_blank');
+                    window.open(objectUrl);
                 }
             }
         } catch (err) {
